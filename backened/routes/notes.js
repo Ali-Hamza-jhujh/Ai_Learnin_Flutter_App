@@ -6,6 +6,7 @@ import upload from "../middleware/upload.js";
 import Notes from "../models/notes.js"        
 import authMiddleware from "../Authentication/auth.js";
 import dotenv from "dotenv";
+import { awardXP } from "../services/xpService.js";
 dotenv.config();
 
 const router = express.Router();                   // fix: was importing router from user.js — wrong
@@ -306,6 +307,8 @@ router.post("/generate", authMiddleware, upload.single("file"), async (req, res)
       detectedChapters: divisions.map(c => c.name),
       chapters: processedChapters,
     });
+awardXP(req.user.id, "GENERATE_NOTES").catch(console.error);
+
 
     res.status(201).json({
       message: "Notes generated successfully!",
