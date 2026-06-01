@@ -3,4 +3,4 @@ build/
 .dart_tool/
 .packages
 .idea/
-*.log
+*.logbackened/.env 
