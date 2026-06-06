@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/app_theme.dart';
 import '../services/api_service.dart';
-import '../services/api_client.dart';
+// import '../services/api_client.dart';
 import 'login_screen.dart';
 // Import other screens when built:
 import 'notes_screen.dart';
 import 'mcq_screen.dart';
-// import 'chat_tutor_screen.dart';
+import 'chat_tutor_screen.dart';
+import 'exam_prediction_screen.dart';
 import 'youtube_screen.dart';
-// import 'profile_screen.dart';
+import 'profile_screen.dart';
 
 // ══════════════════════════════════════════
 // HOME SCREEN — StudyAI Dashboard
@@ -200,7 +201,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           // Avatar + notification
           Column(children: [
             GestureDetector(
-                onTap: () {}, // → ProfileScreen
+             onTap: () => Navigator.push(context, fadeSlideRoute(const ProfileScreen())), // → ProfileScreen
                 child: Container(
                     width: 52,
                     height: 52,
@@ -447,7 +448,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               subtitle: 'Ask anything,\nlearn instantly',
               gradient: const [Color(0xFFFF6B6B), Color(0xFFB03A3A)],
               xpBadge: '+2 XP',
-              onTap: () {}, // → ChatTutorScreen
+              onTap: () => Navigator.push(context, fadeSlideRoute(const ChatTutorScreen())), // → ChatTutorScreen
             ),
             const SizedBox(width: 14),
             _featureTile(
@@ -468,7 +469,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             subtitle: 'AI predicts your score & finds weak topics',
             gradient: const [Color(0xFF48C6EF), Color(0xFF1A6A8A)],
             xpBadge: 'Smart Analysis',
-            onTap: () {}, // → MLScreen
+           onTap: () => Navigator.push(context, fadeSlideRoute(const ExamPredictionScreen())), // → MLScreen
           ),
         ]));
   }
@@ -724,8 +725,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             Navigator.push(context, fadeSlideRoute(const MCQScreen()));
           }
           if (index == 3) {
-            Navigator.push(context, fadeSlideRoute(const YouTubeScreen()));
+            Navigator.push(context, fadeSlideRoute(const ChatTutorScreen()));
           }
+          if (index == 4) {
+  Navigator.push(context, fadeSlideRoute(const ProfileScreen()));
+}
           // TODO: navigate to screens based on index
         },
         child: AnimatedContainer(

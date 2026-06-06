@@ -249,23 +249,23 @@ router.get("/stats", authMiddleware, async (req, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
 
     // Load counts from other collections in parallel
-    const [notesCount, mcqCount, chatCount, testResultCount] = await Promise.all([
+    const [notesCount, mcqsCount, chatCount, testResultCount] = await Promise.all([
       import("../models/notes.js").then(({ default: Notes }) =>
         Notes.countDocuments({ userId: req.user.id })
       ),
-      import("../models/mcq.js").then(({ default: MCQ }) =>
+      import("../models/mcqs.js").then(({ default: MCQ }) =>
         MCQ.countDocuments({ userId: req.user.id })
       ),
       import("../models/chat.js").then(({ default: Chat }) =>
         Chat.countDocuments({ userId: req.user.id })
       ),
-      import("../models/testResult.js").then(({ default: TestResult }) =>
+      import("../models/testresult.js").then(({ default: TestResult }) =>
         TestResult.countDocuments({ userId: req.user.id })
       ),
     ]);
 
     // Average score from test results
-    const TestResult = (await import("../models/testResult.js")).default;
+    const TestResult = (await import("../models/testresult.js")).default;
     const scoreAgg = await TestResult.aggregate([
       { $match: { userId: user._id } },
       { $group: { _id: null, avgScore: { $avg: "$scorePercent" } } },
@@ -280,7 +280,7 @@ router.get("/stats", authMiddleware, async (req, res) => {
       profile: buildProfileResponse(user),
       stats: {
         notesGenerated: notesCount,
-        mcqSetsCreated: mcqCount,
+        mcqSetsCreated: mcqsCount,
         testsCompleted: testResultCount,
         chatSessions: chatCount,
         averageTestScore: averageScore,

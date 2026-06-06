@@ -14,7 +14,7 @@ class ApiConfig {
   // Example: 192.168.1.5
   // Your phone and PC must be on the SAME WiFi network
 
-  static const String _localIp = '192.168.1.100'; // ← change to your PC IPv4
+  static const String _localIp ='192.168.1.7'; // ← change to your PC IPv4
   static const String devUrl = 'http://$_localIp:5000';
   static const String prodUrl =
       'https://your-app.railway.app'; // ← change when deployed

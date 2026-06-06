@@ -5,8 +5,10 @@ const pdfParse = require("pdf-parse");
 import upload from "../middleware/upload.js";
 import MCQ from "../models/mcqs.js";
 import authMiddleware from "../Authentication/auth.js";
+import TestResult from "../models/testresult.js";
 import dotenv from "dotenv";
 dotenv.config();
+import { awardXP } from "../services/xpService.js";
 
 const router = express.Router();
 
@@ -481,7 +483,7 @@ router.post("/submit", authMiddleware, async (req, res) => {
     else prediction = "Significant revision needed. Re-study this chapter thoroughly.";
 
     // Dynamically import TestResult to avoid circular issues
-    const { default: TestResult } = await import("../models/testResult.js");
+    
 
     const result = await TestResult.create({
       userId: req.user.id,
@@ -526,7 +528,7 @@ router.post("/submit", authMiddleware, async (req, res) => {
 // ─── GET MY TEST HISTORY ──────────────────────
 router.get("/my-results", authMiddleware, async (req, res) => {
   try {
-    const { default: TestResult } = await import("../models/testResult.js");
+   
     const results = await TestResult.find({ userId: req.user.id })
       .sort({ createdAt: -1 })
       .select("-answers"); // exclude per-question detail for list view
@@ -539,7 +541,7 @@ router.get("/my-results", authMiddleware, async (req, res) => {
 // ─── GET SINGLE TEST RESULT (full detail) ─────
 router.get("/my-results/:id", authMiddleware, async (req, res) => {
   try {
-    const { default: TestResult } = await import("../models/testResult.js");
+    
     const result = await TestResult.findById(req.params.id);
     if (!result) return res.status(404).json({ message: "Result not found" });
     if (result.userId.toString() !== req.user.id) {

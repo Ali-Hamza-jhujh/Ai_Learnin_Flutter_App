@@ -1,13 +1,25 @@
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'screen/login_screen.dart';
 import 'screen/home_screen.dart';
+import 'screen/onboarding_screen.dart';
 import 'services/api_client.dart';
 import 'utils/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+  ));
   runApp(const StudyApp());
 }
 
@@ -27,100 +39,237 @@ class StudyApp extends StatelessWidget {
           surface: AppColors.bgCard,
         ),
         useMaterial3: true,
+        fontFamily: 'Georgia',
       ),
       home: const SplashRouter(),
     );
   }
 }
 
+// ══════════════════════════════════════════
+// SPLASH ROUTER
+// ══════════════════════════════════════════
+
 class SplashRouter extends StatefulWidget {
   const SplashRouter({super.key});
+
   @override
   State<SplashRouter> createState() => _SplashRouterState();
 }
 
-class _SplashRouterState extends State<SplashRouter> {
+class _SplashRouterState extends State<SplashRouter>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _logoCtrl;
+  late Animation<double> _logoScale;
+  late Animation<double> _logoFade;
+
   @override
   void initState() {
     super.initState();
-    _checkLogin();
+    _logoCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _logoScale = Tween<double>(begin: 0.6, end: 1.0).animate(
+      CurvedAnimation(parent: _logoCtrl, curve: Curves.elasticOut),
+    );
+    _logoFade = CurvedAnimation(
+      parent: _logoCtrl,
+      curve: Curves.easeOut,
+    );
+    _logoCtrl.forward();
+    _route();
   }
 
-  Future<void> _checkLogin() async {
-    await Future.delayed(const Duration(milliseconds: 1500));
+  @override
+  void dispose() {
+    _logoCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _route() async {
+    await Future.delayed(const Duration(milliseconds: 2200));
     if (!mounted) return;
 
-    final loggedIn = await TokenManager.isLoggedIn();
+    final prefs = await SharedPreferences.getInstance();
+    final onboardingDone = prefs.getBool('onboarding_done') ?? false;
 
-    // ── FIX: removed const — these are runtime values ──
-    if (loggedIn) {
-      Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const HomeScreen()));
-    } else {
-      Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+    if (!onboardingDone) {
+      _go(const OnboardingScreen());
+      return;
     }
+
+    final loggedIn = await TokenManager.isLoggedIn();
+    if (loggedIn) {
+      _go(const HomeScreen());
+    } else {
+      _go(const LoginScreen());
+    }
+  }
+
+  void _go(Widget screen) {
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, animation, __) => screen,
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 700),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      body: Stack(children: [
-        const SpaceBackground(),
-        Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 88,
-                height: 88,
-                decoration: BoxDecoration(
-                  gradient: AppColors.primaryGrad,
-                  borderRadius: BorderRadius.circular(28),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.violet.withOpacity(0.55),
-                      blurRadius: 40,
-                      offset: const Offset(0, 12),
+      body: Stack(
+        children: [
+          // Star background
+          CustomPaint(
+            painter: StarPainter(),
+            size: MediaQuery.of(context).size,
+          ),
+          // Content
+          Center(
+            child: AnimatedBuilder(
+              animation: _logoCtrl,
+              builder: (_, __) {
+                return FadeTransition(
+                  opacity: _logoFade,
+                  child: ScaleTransition(
+                    scale: _logoScale,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Logo box
+                        Container(
+                          width: 110,
+                          height: 110,
+                          decoration: BoxDecoration(
+                            gradient: AppColors.primaryGrad,
+                            borderRadius: BorderRadius.circular(36),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.violet.withOpacity(0.6),
+                                blurRadius: 50,
+                                spreadRadius: 5,
+                                offset: const Offset(0, 16),
+                              ),
+                            ],
+                          ),
+                          child: const Center(
+                            child: Text(
+                              '📚',
+                              style: TextStyle(fontSize: 56),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        // App name
+                        ShaderMask(
+                          shaderCallback: (bounds) =>
+                              AppColors.primaryGrad.createShader(bounds),
+                          child: const Text(
+                            'StudyAI',
+                            style: TextStyle(
+                              fontSize: 42,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              fontFamily: 'Georgia',
+                              letterSpacing: -1,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'AI-powered learning',
+                          style: TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 60),
+                        // Loading dots
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _LoadingDot(delay: 0),
+                            _LoadingDot(delay: 200),
+                            _LoadingDot(delay: 400),
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: const Center(
-                  child: Text('📚', style: TextStyle(fontSize: 44)),
-                ),
-              ),
-              const SizedBox(height: 20),
-              ShaderMask(
-                shaderCallback: (b) => AppColors.primaryGrad.createShader(b),
-                child: const Text(
-                  'StudyAI',
-                  style: TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    fontFamily: 'Georgia',
                   ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'AI-powered learning',
-                style: TextStyle(color: AppColors.textSub, fontSize: 14),
-              ),
-              const SizedBox(height: 48),
-              SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  color: AppColors.violet.withOpacity(0.6),
-                  strokeWidth: 2,
-                ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Animated loading dot ──────────────────
+class _LoadingDot extends StatefulWidget {
+  final int delay;
+  const _LoadingDot({required this.delay});
+
+  @override
+  State<_LoadingDot> createState() => _LoadingDotState();
+}
+
+class _LoadingDotState extends State<_LoadingDot>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _c;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _anim = Tween<double>(begin: 0.3, end: 1.0).animate(
+      CurvedAnimation(parent: _c, curve: Curves.easeInOut),
+    );
+    Future.delayed(Duration(milliseconds: widget.delay), () {
+      if (mounted) _c.repeat(reverse: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) {
+        return Container(
+          width: 8,
+          height: 8,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            color: AppColors.violet.withOpacity(_anim.value),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.violet.withOpacity(_anim.value * 0.5),
+                blurRadius: 8,
               ),
             ],
           ),
-        ),
-      ]),
+        );
+      },
     );
   }
 }

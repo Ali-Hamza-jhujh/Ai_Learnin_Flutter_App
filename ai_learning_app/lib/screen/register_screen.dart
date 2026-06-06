@@ -50,8 +50,10 @@ class _RegisterScreenState extends State<RegisterScreen>
   late Animation<double> _fadeAnim;
   late Animation<double> _stepFade;
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
-
+final GoogleSignIn _googleSignIn = GoogleSignIn(
+  scopes: ['email', 'profile'],
+  serverClientId: '709449691227-tj0gfplo7rsihdsgbtb666jfcce6mto1.apps.googleusercontent.com',
+);
   final List<String> _eduLevels = [
     'school',
     'undergraduate',

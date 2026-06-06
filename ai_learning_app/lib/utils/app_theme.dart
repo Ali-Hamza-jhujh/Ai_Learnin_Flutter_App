@@ -524,3 +524,41 @@ SnackBar successSnackBar(String msg) => SnackBar(
     behavior: SnackBarBehavior.floating,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     margin: const EdgeInsets.all(16));
+class StarPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = AppColors.violet.withOpacity(0.07);
+ 
+    // Large soft orbs
+    canvas.drawCircle(Offset(size.width * 0.85, size.height * 0.15), 180, paint);
+    canvas.drawCircle(Offset(size.width * 0.1, size.height * 0.75), 140, paint);
+ 
+    // Small dots
+    final dotPaint = Paint()..color = AppColors.violetLight.withOpacity(0.2);
+    final positions = [
+      Offset(size.width * 0.2, size.height * 0.1),
+      Offset(size.width * 0.75, size.height * 0.35),
+      Offset(size.width * 0.5, size.height * 0.85),
+      Offset(size.width * 0.9, size.height * 0.6),
+      Offset(size.width * 0.15, size.height * 0.5),
+    ];
+    for (final pos in positions) {
+      canvas.drawCircle(pos, 3, dotPaint);
+    }
+ 
+    // Grid lines (subtle)
+    final linePaint = Paint()
+      ..color = AppColors.violet.withOpacity(0.04)
+      ..strokeWidth = 1;
+    for (double x = 0; x < size.width; x += 60) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), linePaint);
+    }
+    for (double y = 0; y < size.height; y += 60) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
+    }
+  }
+ 
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+ 

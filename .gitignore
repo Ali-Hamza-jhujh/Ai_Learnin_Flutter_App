@@ -4,3 +4,5 @@ build/
 .packages
 .idea/
 *.logbackened/.env 
+.env
+backened/.env

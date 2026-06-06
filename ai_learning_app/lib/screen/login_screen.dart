@@ -26,8 +26,10 @@ class _LoginScreenState extends State<LoginScreen>
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
-
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+  scopes: ['email', 'profile'],
+  serverClientId: '709449691227-tj0gfplo7rsihdsgbtb666jfcce6mto1.apps.googleusercontent.com',
+);
   @override
   void initState() {
     super.initState();

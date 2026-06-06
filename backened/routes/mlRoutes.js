@@ -1,5 +1,6 @@
 import express from "express";
 import authMiddleware from "../Authentication/auth.js";
+import TestResult from "../models/testresult.js";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -32,7 +33,7 @@ const callML = async (endpoint, body) => {
 
 // Load user's test results from MongoDB
 const getUserResults = async (userId) => {
-  const { default: TestResult } = await import("../models/testResult.js");
+ 
   const results = await TestResult.find({ userId })
     .sort({ createdAt: 1 }) // oldest first — important for trend analysis
     .select(
