@@ -9,6 +9,18 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+    
+    
+
+  # FCM — push notifications from backend
+  firebase_messaging: ^15.1.0
+  flutter_secure_storage: ^9.2.2
+  device_info_plus: ^11.5.0
+  connectivity_plus: ^6.1.5
+  # Local notifications — show notification UI on device
+  flutter_local_notifications: ^17.2.0
+  timezone: ^0.9.4 
+  
 
   # HTTP client — used by api_client.dart
   http: ^1.2.1

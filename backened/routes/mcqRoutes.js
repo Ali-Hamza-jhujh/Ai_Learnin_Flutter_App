@@ -1,36 +1,82 @@
 import express from "express";
 import { createRequire } from "module";
+import crypto from "crypto";
 const require = createRequire(import.meta.url);
 const pdfParse = require("pdf-parse");
 import upload from "../middleware/upload.js";
 import MCQ from "../models/mcqs.js";
+import PdfCache from "../models/pdfCache.js";
 import authMiddleware from "../Authentication/auth.js";
 import TestResult from "../models/testresult.js";
+import User from "../models/users.js";
+import { notifyMCQReady } from "../services/notificationService.js";
+import { awardXP } from "../services/xpService.js";
 import dotenv from "dotenv";
 dotenv.config();
-import { awardXP } from "../services/xpService.js";
 
 const router = express.Router();
 
 // ══════════════════════════════════════════
-// HELPER FUNCTIONS (shared with notesRoutes)
+// GROQ KEY RESOLUTION
+// Priority: user's key (body/header) → server key
+// Free-tier enforcement is handled by /api/generate/free.
+// MCQ generate assumes the user has passed the key gate.
 // ══════════════════════════════════════════
 
-// 1. Extract text from PDF
-const extractTextFromPDF = async (bufferfile) => {
-  const data = await pdfParse(bufferfile);
+const resolveGroqKey = async (req) => {
+  // 1. Key sent as multipart field by Flutter
+  const fromBody = req.body?.groqApiKey?.trim();
+  if (fromBody && fromBody.startsWith("gsk_")) return fromBody;
+
+  // 2. Key sent as header
+  const fromHeader = req.headers["x-groq-api-key"]?.trim();
+  if (fromHeader && fromHeader.startsWith("gsk_")) return fromHeader;
+
+  // 3. No user key — check free tier
+  const user = await User.findById(req.user.id).select("freeTierUsed freeGenerationUsed");
+  const freeUsed = user?.freeTierUsed || user?.freeGenerationUsed;
+
+  if (freeUsed) {
+    const err = new Error(
+      "API key required. Your 1 free generation has been used. " +
+      "Please add your Groq API key to continue."
+    );
+    err.statusCode = 402;
+    throw err;
+  }
+
+  // 4. First free generation — mark both fields atomically
+  await User.findByIdAndUpdate(req.user.id, {
+    freeTierUsed: true,
+    freeGenerationUsed: true,
+  });
+
+  return process.env.GROQ_API_KEY;
+};
+
+// ══════════════════════════════════════════
+// PDF DEDUPLICATION
+// ══════════════════════════════════════════
+
+const hashBuffer = (buffer) =>
+  crypto.createHash("sha256").update(buffer).digest("hex");
+
+// ══════════════════════════════════════════
+// TEXT PROCESSING HELPERS
+// ══════════════════════════════════════════
+
+const extractTextFromPDF = async (buffer) => {
+  const data = await pdfParse(buffer);
   return data.text;
 };
 
-// 2. Detect chapters
 const detectChapters = (fullText) => {
-  const splittext = fullText.split("\n");
+  const lines = fullText.split("\n");
   let currentIndex = 0;
   const chapters = [];
 
-  for (const line of splittext) {
+  for (const line of lines) {
     const trimmed = line.trim();
-
     const isChapter =
       /^chapter\s+\d+/i.test(trimmed) ||
       /^ch\.\s*\d+/i.test(trimmed) ||
@@ -49,19 +95,16 @@ const detectChapters = (fullText) => {
     chapters[i].endIndex =
       i + 1 < chapters.length ? chapters[i + 1].startIndex : fullText.length;
   }
-
   return chapters;
 };
 
-// 3. Detect sections
 const detectSections = (fullText) => {
-  const sections = [];
   const lines = fullText.split("\n");
   let currentIndex = 0;
+  const sections = [];
 
   for (const line of lines) {
     const trimmed = line.trim();
-
     const isSection =
       /^(introduction|abstract|conclusion|summary|overview|methodology|references|appendix)/i.test(trimmed) ||
       /^(section|part)\s+[\dA-Z]/i.test(trimmed) ||
@@ -81,31 +124,23 @@ const detectSections = (fullText) => {
     sections[i].endIndex =
       i + 1 < sections.length ? sections[i + 1].startIndex : fullText.length;
   }
-
   return sections;
 };
 
-// 4. Analyze document structure
 const analyzeDocument = (fullText) => {
   const chapters = detectChapters(fullText);
   if (chapters.length > 0) return { type: "book", divisions: chapters };
-
   const sections = detectSections(fullText);
   if (sections.length > 0) return { type: "document", divisions: sections };
-
   return { type: "plain", divisions: [] };
 };
 
-// 5. Extract a division's text
-const extractDivisionText = (fullText, division) => {
-  return fullText.slice(division.startIndex, division.endIndex).trim();
-};
+const extractDivisionText = (fullText, division) =>
+  fullText.slice(division.startIndex, division.endIndex).trim();
 
-// 6. Chunk text
 const chunkText = (text, chunkSize = 12000) => {
   const chunks = [];
   let start = 0;
-
   while (start < text.length) {
     let end = start + chunkSize;
     if (end < text.length) {
@@ -115,16 +150,14 @@ const chunkText = (text, chunkSize = 12000) => {
     chunks.push(text.slice(start, end).trim());
     start = end;
   }
-
-  return chunks.filter((chunk) => chunk.length > 50);
+  return chunks.filter((c) => c.length > 50);
 };
 
 // ══════════════════════════════════════════
-// MCQ-SPECIFIC HELPERS
+// MCQ GENERATION — uses resolved key
 // ══════════════════════════════════════════
 
-// 7. Ask Groq to generate MCQs from a chunk
-const generateMCQsFromChunk = async (chunk, numQuestions, difficulty) => {
+const generateMCQsFromChunk = async (chunk, numQuestions, difficulty, apiKey) => {
   const difficultyGuide = {
     easy: "Focus on basic definitions, facts, and simple recall questions.",
     medium: "Include application and comprehension questions. Mix recall with understanding.",
@@ -134,7 +167,7 @@ const generateMCQsFromChunk = async (chunk, numQuestions, difficulty) => {
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -142,7 +175,7 @@ const generateMCQsFromChunk = async (chunk, numQuestions, difficulty) => {
       messages: [
         {
           role: "system",
-          content: `You are an expert MCQ generator for students. 
+          content: `You are an expert MCQ generator for students.
 Generate exactly ${numQuestions} multiple choice questions from the given text.
 Difficulty level: ${difficulty}. ${difficultyGuide[difficulty]}
 
@@ -174,39 +207,32 @@ STRICT RULES:
 
   const data = await res.json();
   const raw = data.choices[0].message.content.trim();
-
-  // Strip markdown code fences if model adds them
   const cleaned = raw.replace(/```json|```/g, "").trim();
 
   try {
     const parsed = JSON.parse(cleaned);
     return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
-    console.log("MCQ JSON parse error:", e.message, "\nRaw:", cleaned.slice(0, 300));
+    console.log("MCQ JSON parse error:", e.message);
     return [];
   }
 };
 
-// 8. Process one division and collect MCQs
-const processDivisionForMCQ = async (text, totalQuestions, difficulty) => {
+const processDivisionForMCQ = async (text, totalQuestions, difficulty, apiKey) => {
   const chunks = chunkText(text);
   if (chunks.length === 0) return [];
 
-  // Distribute questions evenly across chunks
   const questionsPerChunk = Math.ceil(totalQuestions / chunks.length);
   let allQuestions = [];
 
   for (let i = 0; i < chunks.length; i++) {
     console.log(`MCQ chunk ${i + 1}/${chunks.length}`);
-    // Don't over-generate — last chunk gets the remainder
     const needed = Math.min(questionsPerChunk, totalQuestions - allQuestions.length);
     if (needed <= 0) break;
-
-    const questions = await generateMCQsFromChunk(chunks[i], needed, difficulty);
+    const questions = await generateMCQsFromChunk(chunks[i], needed, difficulty, apiKey);
     allQuestions = allQuestions.concat(questions);
   }
 
-  // Trim to exactly the requested count
   return allQuestions.slice(0, totalQuestions);
 };
 
@@ -214,53 +240,54 @@ const processDivisionForMCQ = async (text, totalQuestions, difficulty) => {
 // ROUTES
 // ══════════════════════════════════════════
 
-// ─── SCAN (reuse same scan logic as notes) ──
+// ─── SCAN ─────────────────────────────────
+// Checks PDF cache first — if seen before, returns stored structure.
 router.post("/scan", authMiddleware, upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: "Please upload a PDF file" });
     }
 
+    const pdfHash = hashBuffer(req.file.buffer);
+
+    // Cache hit — return stored structure instantly
+    const cached = await PdfCache.findOne({ pdfHash });
+    if (cached) {
+      console.log(`MCQ scan cache hit: ${pdfHash.slice(0, 8)}...`);
+      return res.status(200).json({
+        message: `${cached.documentType === "book" ? "Book" : "Document"} already in cache — ${cached.divisions.length} divisions found.`,
+        documentType: cached.documentType,
+        divisions: cached.divisions,
+        fromCache: true,
+      });
+    }
+
     const fullText = await extractTextFromPDF(req.file.buffer);
     const { type, divisions } = analyzeDocument(fullText);
+    const divisionNames = divisions.map((d) => d.name);
 
-    if (type === "book") {
-      return res.status(200).json({
-        message: `Book detected — found ${divisions.length} chapters`,
-        documentType: "book",
-        divisions: divisions.map((c) => c.name),
-      });
-    }
-
-    if (type === "document") {
-      return res.status(200).json({
-        message: `Document detected — found ${divisions.length} sections`,
-        documentType: "document",
-        divisions: divisions.map((s) => s.name),
-      });
-    }
+    // Store in cache for future use
+    await PdfCache.create({
+      pdfHash,
+      documentType: type,
+      divisions: divisionNames,
+      fullText,
+    });
 
     return res.status(200).json({
-      message: "Plain document detected — MCQs will be generated from full text",
-      documentType: "plain",
-      divisions: [],
+      message: type === "plain"
+        ? "Plain document detected — MCQs will cover full text."
+        : `${type === "book" ? "Book" : "Document"} detected — ${divisions.length} divisions found.`,
+      documentType: type,
+      divisions: divisionNames,
+      fromCache: false,
     });
   } catch (e) {
     res.status(500).json({ message: `Error: ${e.message}` });
   }
 });
 
-// ─── GENERATE MCQs ─────────────────────────
-//
-// Body params:
-//   title        (required) string
-//   subject      (optional) string
-//   mode         (required) "single" | "multiple" | "full"
-//   chapter      (required if mode=single) string — division name
-//   chapters     (required if mode=multiple) JSON string array
-//   numQuestions (optional, default 10) number — total MCQs to generate
-//   difficulty   (optional, default "medium") "easy" | "medium" | "hard"
-//
+// ─── GENERATE ─────────────────────────────
 router.post("/generate", authMiddleware, upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
@@ -268,13 +295,8 @@ router.post("/generate", authMiddleware, upload.single("file"), async (req, res)
     }
 
     const {
-      title,
-      subject,
-      mode,
-      chapter,
-      chapters,
-      numQuestions = 10,
-      difficulty = "medium",
+      title, subject, mode, chapter, chapters,
+      numQuestions = 10, difficulty = "medium",
     } = req.body;
 
     if (!title || !mode) {
@@ -286,78 +308,126 @@ router.post("/generate", authMiddleware, upload.single("file"), async (req, res)
       return res.status(400).json({ message: "Difficulty must be easy, medium, or hard" });
     }
 
-    const totalQ = Math.min(Math.max(parseInt(numQuestions) || 10, 1), 50); // clamp 1–50
+    const totalQ = Math.min(Math.max(parseInt(numQuestions) || 10, 1), 50);
 
-    const fullText = await extractTextFromPDF(req.file.buffer);
-    const { type, divisions } = analyzeDocument(fullText);
+    // ── 1. Resolve Groq key ──────────────
+    let groqKey;
+    try {
+      groqKey = await resolveGroqKey(req);
+    } catch (keyErr) {
+      return res.status(keyErr.statusCode || 400).json({ message: keyErr.message });
+    }
 
+    // ── 2. PDF deduplication ─────────────
+    const pdfHash = hashBuffer(req.file.buffer);
+    let pdfCache = await PdfCache.findOne({ pdfHash });
+    let fullText;
+    let docType;
+    let allDivisions;
+
+    if (pdfCache) {
+      console.log(`MCQ generate cache hit: ${pdfHash.slice(0, 8)}...`);
+      fullText = pdfCache.fullText;
+      docType = pdfCache.documentType;
+      const analysis = analyzeDocument(fullText);
+      allDivisions = analysis.divisions;
+    } else {
+      fullText = await extractTextFromPDF(req.file.buffer);
+      const analysis = analyzeDocument(fullText);
+      docType = analysis.type;
+      allDivisions = analysis.divisions;
+
+      pdfCache = await PdfCache.create({
+        pdfHash,
+        documentType: docType,
+        divisions: allDivisions.map((d) => d.name),
+        fullText,
+      });
+    }
+
+    // ── 3. Check if user already has MCQs for this exact PDF + config ──
+    const requestedChapters =
+      mode === "single"
+        ? [chapter]
+        : mode === "multiple"
+          ? (() => {
+              try { return JSON.parse(chapters); }
+              catch { return chapters?.split(",").map((c) => c.trim()) ?? []; }
+            })()
+          : allDivisions.map((d) => d.name);
+
+    const existingMCQ = await MCQ.findOne({
+      userId: req.user.id,
+      pdfHash,
+      mode,
+      ...(mode !== "full" && {
+        requestedChapters: { $all: requestedChapters, $size: requestedChapters.length },
+      }),
+    });
+
+    if (existingMCQ) {
+      console.log(`User already has MCQs for this PDF+mode — returning existing.`);
+      return res.status(200).json({
+        message: "MCQs already generated for this document — returning existing.",
+        mcq: existingMCQ,
+        fromCache: true,
+      });
+    }
+
+    // ── 4. Generate MCQs ─────────────────
     let allQuestions = [];
     let chapterLabel = "Full Document";
 
-    // ── PLAIN DOCUMENT ────────────────────────────
-    if (type === "plain" || (mode === "full" && divisions.length === 0)) {
-      allQuestions = await processDivisionForMCQ(fullText, totalQ, difficulty);
-      chapterLabel = "Full Document";
+    if (docType === "plain" || (mode === "full" && allDivisions.length === 0)) {
+      allQuestions = await processDivisionForMCQ(fullText, totalQ, difficulty, groqKey);
 
-    // ── SINGLE CHAPTER / SECTION ──────────────────
     } else if (mode === "single") {
       if (!chapter) {
         return res.status(400).json({ message: "Please specify a chapter or section name" });
       }
-
-      const found = divisions.find((d) =>
+      const found = allDivisions.find((d) =>
         d.name.toLowerCase().includes(chapter.toLowerCase())
       );
       if (!found) {
-        return res.status(404).json({ message: `Chapter/section "${chapter}" not found in document` });
+        return res.status(404).json({ message: `Chapter "${chapter}" not found in document` });
       }
-
       const text = extractDivisionText(fullText, found);
-      allQuestions = await processDivisionForMCQ(text, totalQ, difficulty);
+      allQuestions = await processDivisionForMCQ(text, totalQ, difficulty, groqKey);
       chapterLabel = found.name;
 
-    // ── MULTIPLE CHAPTERS / SECTIONS ─────────────
     } else if (mode === "multiple") {
-      const chapterList = JSON.parse(chapters);
-      if (!chapterList || chapterList.length === 0) {
-        return res.status(400).json({ message: "Please select at least one chapter or section" });
+      const chapterList = (() => {
+        try { return JSON.parse(chapters); }
+        catch { return chapters?.split(",").map((c) => c.trim()) ?? []; }
+      })();
+      if (!chapterList.length) {
+        return res.status(400).json({ message: "Please select at least one chapter" });
       }
 
-      // Divide total questions evenly across selected chapters
       const qPerChapter = Math.ceil(totalQ / chapterList.length);
-
       for (const chName of chapterList) {
-        const found = divisions.find((d) =>
+        const found = allDivisions.find((d) =>
           d.name.toLowerCase().includes(chName.toLowerCase())
         );
         if (!found) continue;
-
         const text = extractDivisionText(fullText, found);
         const needed = Math.min(qPerChapter, totalQ - allQuestions.length);
         if (needed <= 0) break;
-
-        const questions = await processDivisionForMCQ(text, needed, difficulty);
+        const questions = await processDivisionForMCQ(text, needed, difficulty, groqKey);
         allQuestions = allQuestions.concat(questions);
       }
-
       chapterLabel = chapterList.join(", ");
 
-    // ── FULL BOOK / FULL DOCUMENT ─────────────────
     } else if (mode === "full") {
-      const qPerDivision = Math.ceil(totalQ / divisions.length);
-
-      for (const division of divisions) {
+      const qPerDivision = Math.ceil(totalQ / allDivisions.length);
+      for (const division of allDivisions) {
         const text = extractDivisionText(fullText, division);
         if (text.length < 100) continue;
-
         const needed = Math.min(qPerDivision, totalQ - allQuestions.length);
         if (needed <= 0) break;
-
-        const questions = await processDivisionForMCQ(text, needed, difficulty);
+        const questions = await processDivisionForMCQ(text, needed, difficulty, groqKey);
         allQuestions = allQuestions.concat(questions);
       }
-
-      chapterLabel = "Full Document";
 
     } else {
       return res.status(400).json({ message: "Mode must be single, multiple, or full" });
@@ -369,38 +439,47 @@ router.post("/generate", authMiddleware, upload.single("file"), async (req, res)
       });
     }
 
+    // ── 5. Save ──────────────────────────
     const savedMCQ = await MCQ.create({
       userId: req.user.id,
+      pdfHash,
+      requestedChapters,
       title,
-      subject,
+      subject: subject ?? "",
       chapter: chapterLabel,
-      documentType: type,
+      documentType: docType,
+      mode,
       questions: allQuestions,
     });
-awardXP(req.user.id, "GENERATE_MCQ").catch(console.error);
+
+    awardXP(req.user.id, "GENERATE_MCQ").catch(console.error);
+    const user = await User.findById(req.user.id).select("fcmToken");
+    if (user?.fcmToken) notifyMCQReady(user.fcmToken, title).catch(console.error);
 
     res.status(201).json({
       message: `${allQuestions.length} MCQs generated successfully!`,
       mcq: savedMCQ,
+      fromCache: false,
     });
   } catch (e) {
-    res.status(500).json({ message: `Error: ${e.message}` });
+    console.error("MCQ generate error:", e.message);
+    res.status(e.statusCode || 500).json({ message: e.message });
   }
 });
 
-// ─── GET ALL MCQs (list, no questions array) ─
+// ─── GET ALL MCQs ─────────────────────────
 router.get("/my-mcqs", authMiddleware, async (req, res) => {
   try {
     const mcqs = await MCQ.find({ userId: req.user.id })
       .sort({ createdAt: -1 })
-      .select("-questions"); // exclude heavy questions array for list view
+      .select("-questions");
     res.status(200).json({ mcqs });
   } catch (e) {
     res.status(500).json({ message: `Error: ${e.message}` });
   }
 });
 
-// ─── GET SINGLE MCQ (with all questions) ─────
+// ─── GET SINGLE MCQ ───────────────────────
 router.get("/my-mcqs/:id", authMiddleware, async (req, res) => {
   try {
     const mcq = await MCQ.findById(req.params.id);
@@ -414,7 +493,8 @@ router.get("/my-mcqs/:id", authMiddleware, async (req, res) => {
   }
 });
 
-// ─── DELETE MCQ ───────────────────────────────
+// ─── DELETE MCQ ───────────────────────────
+// Also cleans up PdfCache if no other MCQs or Notes reference it
 router.delete("/delete-mcq/:id", authMiddleware, async (req, res) => {
   try {
     const mcq = await MCQ.findById(req.params.id);
@@ -422,22 +502,29 @@ router.delete("/delete-mcq/:id", authMiddleware, async (req, res) => {
     if (mcq.userId.toString() !== req.user.id) {
       return res.status(403).json({ message: "Not authorized" });
     }
+
+    const pdfHash = mcq.pdfHash;
     await MCQ.findByIdAndDelete(req.params.id);
+
+    // Clean up PdfCache if nothing references this PDF anymore
+    if (pdfHash) {
+      const [notesRefs, mcqRefs] = await Promise.all([
+        (await import("../models/notes.js")).default.countDocuments({ pdfHash }),
+        MCQ.countDocuments({ pdfHash }),
+      ]);
+      if (notesRefs === 0 && mcqRefs === 0) {
+        await PdfCache.findOneAndDelete({ pdfHash });
+        console.log(`PdfCache cleaned for hash ${pdfHash.slice(0, 8)}...`);
+      }
+    }
+
     res.status(200).json({ message: "MCQ set deleted successfully" });
   } catch (e) {
     res.status(500).json({ message: `Error: ${e.message}` });
   }
 });
 
-// ─── SUBMIT TEST + SAVE RESULT ────────────────
-//
-// Body:
-//   mcqId           (required) string
-//   answers         (required) array of { questionIndex, selectedAnswer }
-//   timeTakenSeconds (optional) number
-//
-// This scores the test and saves it to TestResult model
-//
+// ─── SUBMIT TEST ──────────────────────────
 router.post("/submit", authMiddleware, async (req, res) => {
   try {
     const { mcqId, answers, timeTakenSeconds } = req.body;
@@ -449,17 +536,15 @@ router.post("/submit", authMiddleware, async (req, res) => {
     const mcq = await MCQ.findById(mcqId);
     if (!mcq) return res.status(404).json({ message: "MCQ set not found" });
 
-    let correct = 0;
-    let wrong = 0;
-    let skipped = 0;
+    let correct = 0, wrong = 0, skipped = 0;
     const detailedAnswers = [];
 
     for (let i = 0; i < mcq.questions.length; i++) {
       const q = mcq.questions[i];
       const userAnswer = answers.find((a) => a.questionIndex === i);
       const selected = userAnswer ? userAnswer.selectedAnswer : null;
-
       const isCorrect = selected === q.correctAnswer;
+
       if (!selected) skipped++;
       else if (isCorrect) correct++;
       else wrong++;
@@ -475,15 +560,11 @@ router.post("/submit", authMiddleware, async (req, res) => {
     const total = mcq.questions.length;
     const scorePercent = Math.round((correct / total) * 100);
 
-    // Simple prediction message
     let prediction = "";
     if (scorePercent >= 85) prediction = "Excellent! You are very well prepared for this topic.";
     else if (scorePercent >= 65) prediction = "Good performance. Review the topics you missed.";
     else if (scorePercent >= 40) prediction = "Needs improvement. Focus on weak areas before the exam.";
     else prediction = "Significant revision needed. Re-study this chapter thoroughly.";
-
-    // Dynamically import TestResult to avoid circular issues
-    
 
     const result = await TestResult.create({
       userId: req.user.id,
@@ -500,14 +581,11 @@ router.post("/submit", authMiddleware, async (req, res) => {
       answers: detailedAnswers,
       prediction,
     });
- await awardXP(req.user.id, "COMPLETE_TEST");
- 
- // Bonus XP based on score
- if (scorePercent >= 80) {
-   await awardXP(req.user.id, "SCORE_ABOVE_80");
- } else if (scorePercent >= 60) {
-   await awardXP(req.user.id, "SCORE_ABOVE_60");
- }
+
+    await awardXP(req.user.id, "COMPLETE_TEST");
+    if (scorePercent >= 80) await awardXP(req.user.id, "SCORE_ABOVE_80");
+    else if (scorePercent >= 60) await awardXP(req.user.id, "SCORE_ABOVE_60");
+
     res.status(201).json({
       message: "Test submitted successfully!",
       result: {
@@ -525,23 +603,20 @@ router.post("/submit", authMiddleware, async (req, res) => {
   }
 });
 
-// ─── GET MY TEST HISTORY ──────────────────────
+// ─── GET RESULTS ──────────────────────────
 router.get("/my-results", authMiddleware, async (req, res) => {
   try {
-   
     const results = await TestResult.find({ userId: req.user.id })
       .sort({ createdAt: -1 })
-      .select("-answers"); // exclude per-question detail for list view
+      .select("-answers");
     res.status(200).json({ results });
   } catch (e) {
     res.status(500).json({ message: `Error: ${e.message}` });
   }
 });
 
-// ─── GET SINGLE TEST RESULT (full detail) ─────
 router.get("/my-results/:id", authMiddleware, async (req, res) => {
   try {
-    
     const result = await TestResult.findById(req.params.id);
     if (!result) return res.status(404).json({ message: "Result not found" });
     if (result.userId.toString() !== req.user.id) {

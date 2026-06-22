@@ -5,7 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../utils/app_theme.dart';
 import '../services/api_service.dart';
 import '../services/api_client.dart';
-
+import 'skeleton_widgets.dart';
 // ══════════════════════════════════════════
 // YOUTUBE SCREEN — 3 tabs:
 // 1. Suggestions  — AI-picked based on user's subject
@@ -195,7 +195,7 @@ class _SuggestionsTabState extends State<_SuggestionsTab>
     super.build(context);
     if (_loading) {
       return const Center(
-          child: CircularProgressIndicator(color: Color(0xFFFF6B6B)));
+          child: YouTubeCardSkeleton());
     }
     if (_error != null) {
       return Center(
@@ -384,7 +384,9 @@ class _SearchTabState extends State<_SearchTab>
       Expanded(
           child: _loading
               ? const Center(
-                  child: CircularProgressIndicator(color: Color(0xFFFF6B6B)))
+                  child: YouTubeCardSkeleton(
+
+                  ))
               : !_hasSearched
                   ? _buildSearchPrompt()
                   : _error != null
@@ -535,7 +537,7 @@ class _SavedTabState extends State<_SavedTab>
     super.build(context);
     if (_loading) {
       return const Center(
-          child: CircularProgressIndicator(color: Color(0xFFFF6B6B)));
+          child: YouTubeCardSkeleton());
     }
     if (_error != null) {
       return Center(
@@ -747,9 +749,8 @@ class _VideoCardState extends State<_VideoCard> {
                                 height: 180,
                                 color: AppColors.inputBg,
                                 child: const Center(
-                                    child: CircularProgressIndicator(
-                                        color: Color(0xFFFF6B6B),
-                                        strokeWidth: 2))),
+                                    child: YouTubeCardSkeleton(
+                                       ))),
                             errorWidget: (_, __, ___) => Container(
                                 height: 180,
                                 color: AppColors.inputBg,
@@ -856,9 +857,8 @@ class _VideoCardState extends State<_VideoCard> {
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
-                                      child: CircularProgressIndicator(
-                                          color: Color(0xFFFF6B6B),
-                                          strokeWidth: 2))
+                                      child: YouTubeCardSkeleton(
+                                          ))
                                   : Icon(
                                       _isSaved
                                           ? Icons.bookmark_rounded
@@ -898,9 +898,8 @@ class _VideoCardState extends State<_VideoCard> {
                                 height: 72,
                                 color: AppColors.inputBg,
                                 child: const Center(
-                                    child: CircularProgressIndicator(
-                                        color: Color(0xFFFF6B6B),
-                                        strokeWidth: 2))),
+                                    child: YouTubeCardSkeleton(
+                                       ))),
                             errorWidget: (_, __, ___) => Container(
                                 width: 110,
                                 height: 72,
@@ -979,8 +978,8 @@ class _VideoCardState extends State<_VideoCard> {
                               ? const SizedBox(
                                   width: 18,
                                   height: 18,
-                                  child: CircularProgressIndicator(
-                                      color: Color(0xFFFF6B6B), strokeWidth: 2))
+                                  child: YouTubeCardSkeleton(
+                                      ))
                               : Icon(
                                   _isSaved
                                       ? Icons.bookmark_rounded

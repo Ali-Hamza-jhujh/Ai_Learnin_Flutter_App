@@ -8,10 +8,16 @@ import 'screen/home_screen.dart';
 import 'screen/onboarding_screen.dart';
 import 'services/api_client.dart';
 import 'utils/app_theme.dart';
-
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'firebase_options.dart';
+import 'services/notification_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+  options: DefaultFirebaseOptions.currentPlatform,
+);
+FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+await NotificationService.init();
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,

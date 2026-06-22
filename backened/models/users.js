@@ -1,5 +1,9 @@
 import mongoose, { Schema } from "mongoose";
 
+// ══════════════════════════════════════════
+// USER MODEL
+// ══════════════════════════════════════════
+
 const userSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -12,7 +16,12 @@ const userSchema = new Schema(
       trim: true,
     },
 
-    password: { type: String, required: true, minlength: 6, select: false },
+    password: {
+      type: String,
+      required: true,
+      minlength: 6,
+      select: false,
+    },
 
     educationLevel: {
       type: String,
@@ -36,11 +45,29 @@ const userSchema = new Schema(
 
     googleAuth: { type: Boolean, default: false },
 
-    // Email verification
+    fcmToken: { type: String, default: "" },
+
+    // ── Free generation tracking ─────────────
+    // freeGenerationUsed: set to true after the user's
+    // first free AI generation via the server key.
+    // Enforced BOTH here (server-side) and in Flutter
+    // (AIKeyStore local flag) for instant UI feedback.
+    freeGenerationUsed: {
+      type: Boolean,
+      default: false,
+    },
+
+    // freeTierUsed: legacy alias kept for backward compatibility
+    // with notes.js resolveGroqKey helper. Both fields mean the same thing.
+    freeTierUsed: {
+      type: Boolean,
+      default: false,
+    },
+
+    // ── Auth tokens ──────────────────────────
     verifyToken: { type: String, select: false },
     verifyTokenExpiry: { type: Date, select: false },
 
-    // Password reset — these were MISSING before, causing forgot-password to fail
     resetToken: { type: String, select: false },
     resetTokenExpiry: { type: Date, select: false },
 
