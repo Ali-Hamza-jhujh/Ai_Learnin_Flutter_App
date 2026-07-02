@@ -253,19 +253,19 @@ router.get("/stats", authMiddleware, async (req, res) => {
       import("../models/notes.js").then(({ default: Notes }) =>
         Notes.countDocuments({ userId: req.user.id })
       ),
-      import("../models/mcq.js").then(({ default: MCQ }) =>
+      import("../models/mcqs.js").then(({ default: MCQ }) =>
         MCQ.countDocuments({ userId: req.user.id })
       ),
       import("../models/chat.js").then(({ default: Chat }) =>
         Chat.countDocuments({ userId: req.user.id })
       ),
-      import("../models/testResult.js").then(({ default: TestResult }) =>
+      import("../models/testresult.js").then(({ default: TestResult }) =>
         TestResult.countDocuments({ userId: req.user.id })
       ),
     ]);
 
     // Average score from test results
-    const TestResult = (await import("../models/testResult.js")).default;
+    const TestResult = (await import("../models/testresult.js")).default;
     const scoreAgg = await TestResult.aggregate([
       { $match: { userId: user._id } },
       { $group: { _id: null, avgScore: { $avg: "$scorePercent" } } },

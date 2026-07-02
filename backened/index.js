@@ -11,7 +11,9 @@ dotenv.config({ path: join(__dirname, ".env") });
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
+import helmet from "helmet";
 import connectDB from "./db.js";
+import { globalRateLimiter } from "./middleware/rateLimiter.js";
 
 import router from "./routes/user.js";
 import notesRouter from "./routes/notes.js";
@@ -20,14 +22,32 @@ import chatRoutes from "./routes/chatRoutes.js";
 import youtubeRoutes from "./routes/youtubeRoutes.js";
 import mlRoutes from "./routes/mlRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
+import generateRoutes from "./routes/generateRoutes.js";
 
-
-// ── App setup ──────────────────────────────────
 const app = express();
 
-app.use(express.json());
-app.use(cors());
+const allowedOrigins = (process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
+
+app.use(
+  cors({
+    origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+    credentials: true,
+  })
+);
+
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(morgan("dev"));
+app.use(globalRateLimiter);
 
 // ── Connect to MongoDB ─────────────────────────
 connectDB();
@@ -35,13 +55,14 @@ connectDB();
 // ── Routes ─────────────────────────────────────
 app.get("/", (req, res) => {
   res.json({
-    message: "StudyAI API is running 🚀",
+    message: "Lumio API is running 🚀",
     version: "1.0.0",
     endpoints: {
       auth: "/api/auth",
       notes: "/api/notes",
       mcq: "/api/mcq",
       chat: "/api/chat",
+      generate: "/api/generate",
     },
   });
 });
@@ -53,7 +74,7 @@ app.use("/api/chat", chatRoutes);
 app.use("/api/youtube", youtubeRoutes);
 app.use("/api/ml", mlRoutes);
 app.use("/api/profile", profileRoutes);
-app.use(express.urlencoded({ extended: true })); // ← add this line
+app.use("/api/generate", generateRoutes);
 
 // ── 404 Handler ────────────────────────────────
 app.use((req, res) => {

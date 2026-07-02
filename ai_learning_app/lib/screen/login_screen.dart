@@ -198,8 +198,9 @@ class _LoginScreenState extends State<LoginScreen>
                               keyboardType: TextInputType.emailAddress,
                               textInputAction: TextInputAction.next,
                               validator: (v) {
-                                if (v == null || v.isEmpty)
+                                if (v == null || v.isEmpty) {
                                   return 'Email required';
+                                }
                                 if (!v.contains('@')) return 'Invalid email';
                                 return null;
                               },
@@ -214,8 +215,9 @@ class _LoginScreenState extends State<LoginScreen>
                               textInputAction: TextInputAction.done,
                               onEditingComplete: _login,
                               validator: (v) {
-                                if (v == null || v.isEmpty)
+                                if (v == null || v.isEmpty) {
                                   return 'Password required';
+                                }
                                 if (v.length < 6) return 'Min 6 characters';
                                 return null;
                               },

@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/app_theme.dart';
 import '../services/api_service.dart';
-import '../services/api_client.dart';
 import 'login_screen.dart';
 // Import other screens when built:
 import 'notes_screen.dart';
 import 'mcq_screen.dart';
-// import 'chat_tutor_screen.dart';
+import 'chat_tutor_screen.dart';
 import 'youtube_screen.dart';
-// import 'profile_screen.dart';
+import 'profile_screen.dart';
+import 'exam_prediction_screen.dart';
+import 'progress_dashboard_screen.dart';
+import 'flashcard_screen.dart';
+import 'api_keys_screen.dart';
 
 // ══════════════════════════════════════════
 // HOME SCREEN — StudyAI Dashboard
@@ -200,7 +203,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           // Avatar + notification
           Column(children: [
             GestureDetector(
-                onTap: () {}, // → ProfileScreen
+                onTap: () => Navigator.push(context,
+                    fadeSlideRoute(const ProfileScreen())), // → ProfileScreen
                 child: Container(
                     width: 52,
                     height: 52,
@@ -377,7 +381,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                     Text('$_streak Day Streak! Keep it up!',
-                        style: TextStyle(
+                        style: const TextStyle(
                             color: AppColors.gold,
                             fontSize: 14,
                             fontWeight: FontWeight.w700)),
@@ -391,7 +395,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   decoration: BoxDecoration(
                       color: AppColors.gold.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(20)),
-                  child: Text('+10 XP/day',
+                  child: const Text('+10 XP/day',
                       style: TextStyle(
                           color: AppColors.gold,
                           fontSize: 12,
@@ -447,7 +451,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               subtitle: 'Ask anything,\nlearn instantly',
               gradient: const [Color(0xFFFF6B6B), Color(0xFFB03A3A)],
               xpBadge: '+2 XP',
-              onTap: () {}, // → ChatTutorScreen
+              onTap: () => Navigator.push(context,
+                  fadeSlideRoute(const ChatTutorScreen())), // → ChatTutorScreen
             ),
             const SizedBox(width: 14),
             _featureTile(
@@ -468,8 +473,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             subtitle: 'AI predicts your score & finds weak topics',
             gradient: const [Color(0xFF48C6EF), Color(0xFF1A6A8A)],
             xpBadge: 'Smart Analysis',
-            onTap: () {}, // → MLScreen
+            onTap: () => Navigator.push(
+                context,
+                fadeSlideRoute(
+                    const ExamPredictionScreen())), // → ExamPredictionScreen
           ),
+          const SizedBox(height: 14),
+          Row(children: [
+            _featureTile(
+              icon: '🃏',
+              title: 'Flashcards',
+              subtitle: 'Spaced repetition\nreview',
+              gradient: const [Color(0xFF7B61FF), Color(0xFF00D4FF)],
+              xpBadge: '+15 XP',
+              onTap: () => Navigator.push(
+                context,
+                fadeSlideRoute(const FlashcardScreen(cards: [])),
+              ),
+            ),
+            const SizedBox(width: 14),
+            _featureTile(
+              icon: '📈',
+              title: 'Dashboard',
+              subtitle: 'Progress &\nreadiness',
+              gradient: const [Color(0xFF34EEB6), Color(0xFF007A64)],
+              xpBadge: 'Insights',
+              onTap: () => Navigator.push(
+                context,
+                fadeSlideRoute(const ProgressDashboardScreen()),
+              ),
+            ),
+          ]),
         ]));
   }
 
@@ -677,7 +711,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     Text(subtitle,
                         style: AppTextStyles.body.copyWith(fontSize: 12)),
                   ])),
-              Icon(Icons.chevron_right_rounded,
+              const Icon(Icons.chevron_right_rounded,
                   color: AppColors.textMuted, size: 20),
             ])));
   }
@@ -724,8 +758,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             Navigator.push(context, fadeSlideRoute(const MCQScreen()));
           }
           if (index == 3) {
-            Navigator.push(context, fadeSlideRoute(const YouTubeScreen()));
+            Navigator.push(context, fadeSlideRoute(const ChatTutorScreen()));
           }
+          if (index == 4) {
+            Navigator.push(context, fadeSlideRoute(const ProfileScreen()));
+          }
+
           // TODO: navigate to screens based on index
         },
         child: AnimatedContainer(

@@ -59,17 +59,19 @@ class _NotesScreenState extends State<NotesScreen>
         _fadeCtrl.forward(from: 0);
       }
     } on ApiException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.message;
           _loading = false;
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = 'Failed to load notes';
           _loading = false;
         });
+      }
     }
   }
 
@@ -77,9 +79,10 @@ class _NotesScreenState extends State<NotesScreen>
     try {
       await NotesService.deleteNote(id);
       setState(() => _notes.removeWhere((n) => n['_id'] == id));
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(_snackBar('Note deleted', AppColors.error));
+      }
     } catch (_) {}
   }
 
@@ -263,11 +266,18 @@ class _NotesScreenState extends State<NotesScreen>
                                   color: AppColors.cyan, fontSize: 12)),
                         const SizedBox(height: 6),
                         Row(children: [
-                          _chip(_modeLabel(mode), AppColors.violet),
-                          const SizedBox(width: 6),
-                          if (chapters > 0)
-                            _chip('$chapters chapters', AppColors.cyan),
-                          const Spacer(),
+                          Flexible(
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                _chip(_modeLabel(mode), AppColors.violet),
+                                if (chapters > 0)
+                                  _chip('$chapters chapters', AppColors.cyan),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
                           Text(date,
                               style:
                                   AppTextStyles.label.copyWith(fontSize: 10)),
@@ -487,25 +497,28 @@ class _GenerateNotesScreenState extends State<_GenerateNotesScreen> {
         chapter: _mode == 'single' ? _selectedChapter : null,
         chapters: _mode == 'multiple' ? _selectedChapters : null,
       );
-      if (mounted)
+      if (mounted) {
         setState(() {
           _step = 3;
           _generating = false;
         });
+      }
     } on ApiException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.message;
           _step = 1;
           _generating = false;
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = 'Generation failed. Please try again.';
           _step = 1;
           _generating = false;
         });
+      }
     }
   }
 
@@ -599,9 +612,10 @@ class _GenerateNotesScreenState extends State<_GenerateNotesScreen> {
               width: 90,
               height: 90,
               decoration: BoxDecoration(
-                  color: AppColors.violet.withOpacity(0.1),
+                  color: AppColors.violet.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: AppColors.violet.withOpacity(0.3))),
+                  border: Border.all(
+                      color: AppColors.violet.withValues(alpha: 0.3))),
               child: const Center(
                   child: Text('📤', style: TextStyle(fontSize: 44))))),
       const SizedBox(height: 24),
@@ -634,7 +648,7 @@ class _GenerateNotesScreenState extends State<_GenerateNotesScreen> {
               padding: const EdgeInsets.all(40),
               decoration: BoxDecoration(
                   color: _pdfFile != null
-                      ? AppColors.violet.withOpacity(0.08)
+                      ? AppColors.violet.withValues(alpha: 0.08)
                       : AppColors.inputBg,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
@@ -644,10 +658,10 @@ class _GenerateNotesScreenState extends State<_GenerateNotesScreen> {
                       width: _pdfFile != null ? 2 : 1.5,
                       style: BorderStyle.solid)),
               child: _scanning
-                  ? Column(children: [
-                      const CircularProgressIndicator(color: AppColors.violet),
-                      const SizedBox(height: 16),
-                      const Text('Scanning document...',
+                  ? const Column(children: [
+                      CircularProgressIndicator(color: AppColors.violet),
+                      SizedBox(height: 16),
+                      Text('Scanning document...',
                           style: AppTextStyles.sub,
                           textAlign: TextAlign.center),
                     ])
@@ -666,16 +680,16 @@ class _GenerateNotesScreenState extends State<_GenerateNotesScreen> {
                               style: AppTextStyles.body.copyWith(
                                   color: AppColors.violet, fontSize: 12)),
                         ])
-                      : Column(children: [
-                          const Text('📁', style: TextStyle(fontSize: 40)),
-                          const SizedBox(height: 12),
-                          const Text('Tap to select PDF',
+                      : const Column(children: [
+                          Text('📁', style: TextStyle(fontSize: 40)),
+                          SizedBox(height: 12),
+                          Text('Tap to select PDF',
                               style: TextStyle(
                                   color: AppColors.textWhite,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 6),
-                          const Text('Supports PDF files up to 100MB',
+                          SizedBox(height: 6),
+                          Text('Supports PDF files up to 100MB',
                               style: AppTextStyles.sub),
                         ]))),
 
@@ -791,10 +805,11 @@ class _GenerateNotesScreenState extends State<_GenerateNotesScreen> {
                     final sel = _selectedChapters.contains(d);
                     return GestureDetector(
                         onTap: () => setState(() {
-                              if (sel)
+                              if (sel) {
                                 _selectedChapters.remove(d);
-                              else
+                              } else {
                                 _selectedChapters.add(d);
+                              }
                             }),
                         child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
@@ -848,7 +863,7 @@ class _GenerateNotesScreenState extends State<_GenerateNotesScreen> {
                       borderRadius: BorderRadius.circular(36),
                       boxShadow: [
                         BoxShadow(
-                            color: AppColors.violet.withOpacity(0.5),
+                            color: AppColors.violet.withValues(alpha: 0.5),
                             blurRadius: 40,
                             offset: const Offset(0, 12))
                       ]),
@@ -899,7 +914,7 @@ class _GenerateNotesScreenState extends State<_GenerateNotesScreen> {
                   borderRadius: BorderRadius.circular(36),
                   boxShadow: [
                     BoxShadow(
-                        color: AppColors.violet.withOpacity(0.5),
+                        color: AppColors.violet.withValues(alpha: 0.5),
                         blurRadius: 40,
                         offset: const Offset(0, 12))
                   ]),
@@ -949,9 +964,9 @@ class _GenerateNotesScreenState extends State<_GenerateNotesScreen> {
     return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-            color: AppColors.violet.withOpacity(0.15),
+            color: AppColors.violet.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.violet.withOpacity(0.3))),
+            border: Border.all(color: AppColors.violet.withValues(alpha: 0.3))),
         child: Text(label,
             style: const TextStyle(
                 color: AppColors.violetLight,
@@ -1017,23 +1032,26 @@ class _NoteViewerScreenState extends State<_NoteViewerScreen> {
     setState(() => _loading = true);
     try {
       final res = await NotesService.getNoteById(widget.noteId);
-      if (mounted)
+      if (mounted) {
         setState(() {
           _note = res['note'] as Map<String, dynamic>?;
           _loading = false;
         });
+      }
     } on ApiException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.message;
           _loading = false;
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = 'Failed to load note';
           _loading = false;
         });
+      }
     }
   }
 
@@ -1089,6 +1107,36 @@ class _NoteViewerScreenState extends State<_NoteViewerScreen> {
           child: Text('No content available', style: AppTextStyles.sub));
     }
 
+    // Ensure selected chapter is within bounds
+    if (_selectedChapter >= _chapters.length) {
+      setState(() => _selectedChapter = 0);
+    }
+
+    // Handle duplicate chapter names by adding suffix
+    List<String> getUniqueChapterNames() {
+      final names = <String>[];
+      final counts = <String, int>{};
+      for (final chapter in _chapters) {
+        final name =
+            chapter['chapterName']?.toString() ?? 'Chapter ${names.length + 1}';
+        counts[name] = (counts[name] ?? 0) + 1;
+      }
+      final usedCounts = <String, int>{};
+      for (final chapter in _chapters) {
+        final name =
+            chapter['chapterName']?.toString() ?? 'Chapter ${names.length + 1}';
+        if (counts[name]! > 1) {
+          usedCounts[name] = (usedCounts[name] ?? 0) + 1;
+          names.add('$name (${usedCounts[name]})');
+        } else {
+          names.add(name);
+        }
+      }
+      return names;
+    }
+
+    final uniqueNames = getUniqueChapterNames();
+
     return Column(children: [
       // Chapter tabs (if multiple)
       if (_chapters.length > 1)
@@ -1101,8 +1149,7 @@ class _NoteViewerScreenState extends State<_NoteViewerScreen> {
                 itemCount: _chapters.length,
                 itemBuilder: (_, i) {
                   final sel = i == _selectedChapter;
-                  final name = _chapters[i]['chapterName'] as String? ??
-                      'Chapter ${i + 1}';
+                  final name = uniqueNames[i];
                   return GestureDetector(
                       onTap: () => setState(() => _selectedChapter = i),
                       child: AnimatedContainer(
@@ -1141,15 +1188,13 @@ class _NoteViewerScreenState extends State<_NoteViewerScreen> {
                                 colors: [Color(0xFF1A1060), Color(0xFF0D1535)]),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                                color: AppColors.violet.withOpacity(0.3))),
+                                color:
+                                    AppColors.violet.withValues(alpha: 0.3))),
                         child: Row(children: [
                           const Text('📖', style: TextStyle(fontSize: 20)),
                           const SizedBox(width: 10),
                           Expanded(
-                              child: Text(
-                                  _chapters[_selectedChapter]['chapterName']
-                                          as String? ??
-                                      'Notes',
+                              child: Text(uniqueNames[_selectedChapter],
                                   style: const TextStyle(
                                       color: AppColors.textWhite,
                                       fontSize: 15,
@@ -1160,7 +1205,7 @@ class _NoteViewerScreenState extends State<_NoteViewerScreen> {
 
                     // Notes text — formatted with markdown-like rendering
                     _buildFormattedNotes(
-                        _chapters[_selectedChapter]['notes'] as String? ?? ''),
+                        _chapters[_selectedChapter]['notes']?.toString() ?? ''),
 
                     const SizedBox(height: 40),
                   ]))),
@@ -1245,7 +1290,7 @@ class _NoteViewerScreenState extends State<_NoteViewerScreen> {
 // ── Snackbar helper ───────────────────────
 SnackBar _snackBar(String msg, Color color) => SnackBar(
     content: Text(msg, style: const TextStyle(color: Colors.white)),
-    backgroundColor: color.withOpacity(0.9),
+    backgroundColor: color.withValues(alpha: 0.9),
     behavior: SnackBarBehavior.floating,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     margin: const EdgeInsets.all(16));

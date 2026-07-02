@@ -322,3 +322,70 @@ class ProfileService {
 
   static Future<Map<String, dynamic>> getStats() async => ApiClient.get('$_base/stats');
 }
+
+// ══════════════════════════════════════════
+// GENERATE SERVICE (Lumio AI pipeline)
+// ══════════════════════════════════════════
+
+class GenerateService {
+  static const String _base = '/api/generate';
+
+  static Future<Map<String, dynamic>> uploadPdfCache(File pdfFile) async {
+    return ApiClient.uploadFile('$_base/pdf-cache',
+        file: pdfFile, fileField: 'file');
+  }
+
+  static Future<Map<String, dynamic>> checkPdfCache(String pdfHash) async {
+    return ApiClient.post('$_base/pdf-cache/check', body: {'pdfHash': pdfHash});
+  }
+
+  static Future<Map<String, dynamic>> getTrialStatus() async {
+    return ApiClient.get('$_base/trial-status');
+  }
+
+  static Future<Map<String, dynamic>> generateFree({
+    required String pdfHash,
+    required List<String> selectedChapters,
+    required String summaryType,
+    required String difficulty,
+    required int numMcqs,
+    required String mode,
+    required String type,
+    required String title,
+  }) async {
+    return ApiClient.post('$_base/free', body: {
+      'pdfHash': pdfHash,
+      'selectedChapters': selectedChapters,
+      'summaryType': summaryType,
+      'difficulty': difficulty,
+      'numMcqs': numMcqs,
+      'mode': mode,
+      'type': type,
+      'title': title,
+    });
+  }
+
+  static Future<Map<String, dynamic>> generateWithKeys({
+    required String pdfHash,
+    required List<String> selectedChapters,
+    required String summaryType,
+    required String difficulty,
+    required int numMcqs,
+    required String mode,
+    required String type,
+    required String title,
+    required Map<String, String?> userKeys,
+  }) async {
+    return ApiClient.post('$_base/with-keys', body: {
+      'pdfHash': pdfHash,
+      'selectedChapters': selectedChapters,
+      'summaryType': summaryType,
+      'difficulty': difficulty,
+      'numMcqs': numMcqs,
+      'mode': mode,
+      'type': type,
+      'title': title,
+      'userKeys': userKeys,
+    });
+  }
+}

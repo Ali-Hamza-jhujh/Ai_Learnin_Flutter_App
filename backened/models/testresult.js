@@ -27,4 +27,6 @@ const testResultSchema = new Schema(
   { timestamps: true }
 );
 
-export default model("TestResult", testResultSchema);
+export default mongoose.models.TestResult ||
+  model("TestResult", testResultSchema);
+  

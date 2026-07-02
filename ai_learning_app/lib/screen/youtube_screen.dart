@@ -176,17 +176,19 @@ class _SuggestionsTabState extends State<_SuggestionsTab>
         });
       }
     } on ApiException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.message;
           _loading = false;
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = 'Failed to load suggestions';
           _loading = false;
         });
+      }
     }
   }
 
@@ -225,7 +227,7 @@ class _SuggestionsTabState extends State<_SuggestionsTab>
                 Row(children: [
                   const Text('✨', style: TextStyle(fontSize: 16)),
                   const SizedBox(width: 8),
-                  Text('Recommended for ', style: AppTextStyles.body),
+                  const Text('Recommended for ', style: AppTextStyles.body),
                   ShaderMask(
                       shaderCallback: (b) => const LinearGradient(
                               colors: [Color(0xFFFF6B6B), Color(0xFFFF8E53)])
@@ -310,17 +312,19 @@ class _SearchTabState extends State<_SearchTab>
         });
       }
     } on ApiException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.message;
           _loading = false;
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = 'Search failed. Try again.';
           _loading = false;
         });
+      }
     }
   }
 
@@ -432,7 +436,7 @@ class _SearchTabState extends State<_SearchTab>
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
                                   color: const Color(0xFFFF6B6B)
-                                      .withOpacity(0.3))),
+                                      .withValues(alpha: 0.3))),
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
                             const Text('🔍', style: TextStyle(fontSize: 12)),
                             const SizedBox(width: 6),
@@ -501,17 +505,19 @@ class _SavedTabState extends State<_SavedTab>
         });
       }
     } on ApiException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.message;
           _loading = false;
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = 'Failed to load saved videos';
           _loading = false;
         });
+      }
     }
   }
 
@@ -519,7 +525,7 @@ class _SavedTabState extends State<_SavedTab>
     try {
       await YouTubeService.unsaveVideo(videoId);
       setState(() => _saved.removeWhere((v) => v['videoId'] == videoId));
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: const Text('Removed from saved'),
             backgroundColor: AppColors.bgCard,
@@ -527,6 +533,7 @@ class _SavedTabState extends State<_SavedTab>
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             margin: const EdgeInsets.all(16)));
+      }
     } catch (_) {}
   }
 
@@ -554,11 +561,12 @@ class _SavedTabState extends State<_SavedTab>
                         width: 90,
                         height: 90,
                         decoration: BoxDecoration(
-                            color: const Color(0xFFFF6B6B).withOpacity(0.1),
+                            color:
+                                const Color(0xFFFF6B6B).withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(28),
                             border: Border.all(
-                                color:
-                                    const Color(0xFFFF6B6B).withOpacity(0.2))),
+                                color: const Color(0xFFFF6B6B)
+                                    .withValues(alpha: 0.2))),
                         child: const Center(
                             child: Text('🔖', style: TextStyle(fontSize: 40)))),
                     const SizedBox(height: 20),
@@ -591,7 +599,7 @@ class _SavedTabState extends State<_SavedTab>
                       alignment: Alignment.centerRight,
                       padding: const EdgeInsets.only(right: 20),
                       decoration: BoxDecoration(
-                          color: AppColors.error.withOpacity(0.2),
+                          color: AppColors.error.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(20)),
                       child: const Icon(Icons.bookmark_remove_rounded,
                           color: AppColors.error)),
@@ -689,14 +697,15 @@ class _VideoCardState extends State<_VideoCard> {
     try {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: const Text('Could not open video'),
-            backgroundColor: AppColors.error.withOpacity(0.9),
+            backgroundColor: AppColors.error.withValues(alpha: 0.9),
             behavior: SnackBarBehavior.floating,
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             margin: const EdgeInsets.all(16)));
+      }
     }
   }
 
@@ -708,8 +717,9 @@ class _VideoCardState extends State<_VideoCard> {
     final views = widget.video['views'] as String? ?? '';
     final thumbnail = widget.video['thumbnail']?['medium'] as String? ?? '';
 
-    if (widget.featured)
+    if (widget.featured) {
       return _buildFeaturedCard(title, channel, duration, views, thumbnail);
+    }
     return _buildRegularCard(title, channel, duration, views, thumbnail);
   }
 
@@ -721,11 +731,11 @@ class _VideoCardState extends State<_VideoCard> {
             decoration: BoxDecoration(
                 color: AppColors.bgCard,
                 borderRadius: BorderRadius.circular(20),
-                border:
-                    Border.all(color: const Color(0xFFFF6B6B).withOpacity(0.3)),
+                border: Border.all(
+                    color: const Color(0xFFFF6B6B).withValues(alpha: 0.3)),
                 boxShadow: [
                   BoxShadow(
-                      color: const Color(0xFFFF6B6B).withOpacity(0.1),
+                      color: const Color(0xFFFF6B6B).withValues(alpha: 0.1),
                       blurRadius: 20,
                       offset: const Offset(0, 6))
                 ]),
@@ -779,7 +789,7 @@ class _VideoCardState extends State<_VideoCard> {
                                 boxShadow: [
                                   BoxShadow(
                                       color: const Color(0xFFFF6B6B)
-                                          .withOpacity(0.5),
+                                          .withValues(alpha: 0.5),
                                       blurRadius: 16)
                                 ]),
                             child: const Icon(Icons.play_arrow_rounded,
@@ -793,7 +803,7 @@ class _VideoCardState extends State<_VideoCard> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.8),
+                              color: Colors.black.withValues(alpha: 0.8),
                               borderRadius: BorderRadius.circular(6)),
                           child: Text(duration,
                               style: const TextStyle(
@@ -924,7 +934,7 @@ class _VideoCardState extends State<_VideoCard> {
                             width: 32,
                             height: 32,
                             decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.6),
+                                color: Colors.black.withValues(alpha: 0.6),
                                 shape: BoxShape.circle),
                             child: const Icon(Icons.play_arrow_rounded,
                                 color: Colors.white, size: 18)))),
@@ -936,7 +946,7 @@ class _VideoCardState extends State<_VideoCard> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 5, vertical: 2),
                           decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.8),
+                              color: Colors.black.withValues(alpha: 0.8),
                               borderRadius: BorderRadius.circular(4)),
                           child: Text(duration,
                               style: const TextStyle(
@@ -1028,7 +1038,7 @@ class _SavedVideoCard extends StatelessWidget {
                 color: AppColors.bgCard,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                    color: const Color(0xFFFF6B6B).withOpacity(0.15))),
+                    color: const Color(0xFFFF6B6B).withValues(alpha: 0.15))),
             child: Row(children: [
               // Thumbnail
               Stack(children: [
@@ -1060,7 +1070,7 @@ class _SavedVideoCard extends StatelessWidget {
                             width: 28,
                             height: 28,
                             decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.6),
+                                color: Colors.black.withValues(alpha: 0.6),
                                 shape: BoxShape.circle),
                             child: const Icon(Icons.play_arrow_rounded,
                                 color: Colors.white, size: 16)))),
@@ -1072,7 +1082,7 @@ class _SavedVideoCard extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 4, vertical: 2),
                           decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.8),
+                              color: Colors.black.withValues(alpha: 0.8),
                               borderRadius: BorderRadius.circular(4)),
                           child: Text(duration,
                               style: const TextStyle(
@@ -1103,7 +1113,8 @@ class _SavedVideoCard extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                              color: const Color(0xFFFF6B6B).withOpacity(0.15),
+                              color: const Color(0xFFFF6B6B)
+                                  .withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(8)),
                           child: Text(subject,
                               style: const TextStyle(
@@ -1119,7 +1130,7 @@ class _SavedVideoCard extends StatelessWidget {
                   child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                          color: AppColors.error.withOpacity(0.1),
+                          color: AppColors.error.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(10)),
                       child: const Icon(Icons.bookmark_remove_rounded,
                           color: AppColors.error, size: 18))),

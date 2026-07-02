@@ -60,17 +60,19 @@ class _MCQScreenState extends State<MCQScreen> with TickerProviderStateMixin {
         _fadeCtrl.forward(from: 0);
       }
     } on ApiException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.message;
           _loading = false;
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = 'Failed to load MCQs';
           _loading = false;
         });
+      }
     }
   }
 
@@ -78,9 +80,10 @@ class _MCQScreenState extends State<MCQScreen> with TickerProviderStateMixin {
     try {
       await MCQService.deleteMCQ(id);
       setState(() => _mcqs.removeWhere((m) => m['_id'] == id));
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(_snackBar('MCQ set deleted', AppColors.error));
+      }
     } catch (_) {}
   }
 
@@ -370,7 +373,6 @@ class _GenerateMCQScreenState extends State<_GenerateMCQScreen> {
 
   File? _pdfFile;
   String _fileName = '';
-  String _documentType = 'plain';
   List<String> _divisions = [];
 
   final _titleCtrl = TextEditingController();
@@ -420,7 +422,6 @@ class _GenerateMCQScreenState extends State<_GenerateMCQScreen> {
     try {
       final res = await MCQService.scanPDF(_pdfFile!);
       setState(() {
-        _documentType = res['documentType'] as String? ?? 'plain';
         _divisions = (res['divisions'] as List<dynamic>?)
                 ?.map((e) => e.toString())
                 .toList() ??
@@ -475,25 +476,28 @@ class _GenerateMCQScreenState extends State<_GenerateMCQScreen> {
         numQuestions: _numQuestions,
         difficulty: _difficulty,
       );
-      if (mounted)
+      if (mounted) {
         setState(() {
           _step = 3;
           _generating = false;
         });
+      }
     } on ApiException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.message;
           _step = 1;
           _generating = false;
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = 'Generation failed. Please try again.';
           _step = 1;
           _generating = false;
         });
+      }
     }
   }
 
@@ -659,7 +663,8 @@ class _GenerateMCQScreenState extends State<_GenerateMCQScreen> {
                           const SizedBox(height: 8),
                           Text('Tap to change',
                               style: AppTextStyles.body.copyWith(
-                                  color: Color(0xFF00C9A7), fontSize: 12)),
+                                  color: const Color(0xFF00C9A7),
+                                  fontSize: 12)),
                         ])
                       : const Column(children: [
                           Text('📁', style: TextStyle(fontSize: 40)),
@@ -723,8 +728,6 @@ class _GenerateMCQScreenState extends State<_GenerateMCQScreen> {
                 hint: 'e.g. Physics, Mathematics',
                 controller: _subjectCtrl,
                 prefixIcon: Icons.book_outlined),
-
-            // Number of questions
             const SizedBox(height: 20),
             const Text('NUMBER OF QUESTIONS', style: AppTextStyles.label),
             const SizedBox(height: 12),
@@ -763,8 +766,6 @@ class _GenerateMCQScreenState extends State<_GenerateMCQScreen> {
                                           ? FontWeight.w700
                                           : FontWeight.w400))))));
             }).toList()),
-
-            // Difficulty
             const SizedBox(height: 20),
             const Text('DIFFICULTY', style: AppTextStyles.label),
             const SizedBox(height: 12),
@@ -775,8 +776,6 @@ class _GenerateMCQScreenState extends State<_GenerateMCQScreen> {
               const SizedBox(width: 8),
               _diffChip('hard', '🔥 Hard', AppColors.error),
             ]),
-
-            // Mode
             if (_divisions.isNotEmpty) ...[
               const SizedBox(height: 20),
               const Text('QUIZ MODE', style: AppTextStyles.label),
@@ -789,8 +788,6 @@ class _GenerateMCQScreenState extends State<_GenerateMCQScreen> {
                 _modeChip('multiple', '📑 Multi'),
               ]),
             ],
-
-            // Single chapter
             if (_mode == 'single' && _divisions.isNotEmpty) ...[
               const SizedBox(height: 20),
               const Text('SELECT CHAPTER', style: AppTextStyles.label),
@@ -819,8 +816,6 @@ class _GenerateMCQScreenState extends State<_GenerateMCQScreen> {
                           onChanged: (v) =>
                               setState(() => _selectedChapter = v)))),
             ],
-
-            // Multiple chapters
             if (_mode == 'multiple' && _divisions.isNotEmpty) ...[
               const SizedBox(height: 20),
               const Text('SELECT CHAPTERS', style: AppTextStyles.label),
@@ -832,10 +827,11 @@ class _GenerateMCQScreenState extends State<_GenerateMCQScreen> {
                     final sel = _selectedChapters.contains(d);
                     return GestureDetector(
                         onTap: () => setState(() {
-                              if (sel)
+                              if (sel) {
                                 _selectedChapters.remove(d);
-                              else
+                              } else {
                                 _selectedChapters.add(d);
+                              }
                             }),
                         child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
@@ -984,8 +980,7 @@ class _GenerateMCQScreenState extends State<_GenerateMCQScreen> {
             const SizedBox(width: 10),
             Expanded(
                 child: Text(
-                    'Generating $_numQuestions questions '
-                    'at $_difficulty difficulty.',
+                    'Generating $_numQuestions questions at $_difficulty difficulty.',
                     style: AppTextStyles.body.copyWith(fontSize: 12))),
           ])),
         ]));
@@ -1069,14 +1064,15 @@ class _TakeTestScreen extends StatefulWidget {
 class _TakeTestScreenState extends State<_TakeTestScreen>
     with TickerProviderStateMixin {
   List<Map<String, dynamic>> _questions = [];
-  Map<String, dynamic>? _mcqData;
   bool _loading = true;
   String? _error;
 
   int _current = 0;
-  Map<int, String> _answers = {};
+  // ── FIX 1: Track selected answer AND whether answer was submitted (tapped)
+  // so we can show correct/wrong feedback on click.
+  final Map<int, String> _answers = {};
+  bool _answered = false; // true after user taps an option for current Q
 
-  // Timer
   late Timer _timer;
   int _seconds = 0;
 
@@ -1108,31 +1104,77 @@ class _TakeTestScreenState extends State<_TakeTestScreen>
     try {
       final res = await MCQService.getMCQById(widget.mcqId);
       final mcq = res['mcq'] as Map<String, dynamic>;
-      final questions = (mcq['questions'] as List<dynamic>)
+
+      // ── FIX 2: Normalise each question's options.
+      // The AI sometimes returns all 4 options concatenated in options[0].
+      // We detect that case and split them out into proper A/B/C/D items.
+      final rawQuestions = (mcq['questions'] as List<dynamic>)
           .map((e) => e as Map<String, dynamic>)
           .toList();
+
+      final normalisedQuestions = rawQuestions.map((q) {
+        final rawOptions = (q['options'] as List<dynamic>? ?? [])
+            .map((e) => e.toString())
+            .toList();
+
+        List<String> options;
+        if (rawOptions.length == 1) {
+          // All options are jammed into a single string — split on A)/B)/C)/D)
+          options = _splitOptions(rawOptions.first);
+        } else if (rawOptions.length < 4) {
+          // Try splitting each element further in case of partial merging
+          options = rawOptions.expand((o) => _splitOptions(o)).toList();
+        } else {
+          options = rawOptions;
+        }
+
+        // Trim and remove empty
+        options =
+            options.map((o) => o.trim()).where((o) => o.isNotEmpty).toList();
+
+        return {
+          ...q,
+          'options': options,
+        };
+      }).toList();
+
       if (mounted) {
         setState(() {
-          _mcqData = mcq;
-          _questions = questions;
+          _questions = normalisedQuestions;
           _loading = false;
+          _answered = _answers.containsKey(0);
         });
         _startTimer();
         _questionCtrl.forward();
       }
     } on ApiException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.message;
           _loading = false;
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = 'Failed to load quiz';
           _loading = false;
         });
+      }
     }
+  }
+
+  /// Splits a single merged-options string like
+  /// "A) Foo B) Bar C) Baz D) Qux" into ["A) Foo", "B) Bar", ...]
+  List<String> _splitOptions(String raw) {
+    // Split on the label pattern: A) B) C) D) (or A. B. C. D.)
+    final pattern = RegExp(r'(?=[A-D][)\.])\s*');
+    final parts = raw
+        .split(pattern)
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    return parts.length >= 2 ? parts : [raw]; // fallback: keep original
   }
 
   void _startTimer() {
@@ -1147,15 +1189,23 @@ class _TakeTestScreenState extends State<_TakeTestScreen>
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
+  // ── FIX 3: On tap, record answer and set _answered = true to show feedback
   void _selectAnswer(String answer) {
+    if (_answered) return; // already answered this question — lock it
     HapticFeedback.selectionClick();
-    setState(() => _answers[_current] = answer);
+    setState(() {
+      _answers[_current] = answer;
+      _answered = true;
+    });
   }
 
   void _nextQuestion() {
     if (_current < _questions.length - 1) {
       _questionCtrl.reverse().then((_) {
-        setState(() => _current++);
+        setState(() {
+          _current++;
+          _answered = _answers.containsKey(_current);
+        });
         _questionCtrl.forward();
       });
     }
@@ -1164,7 +1214,10 @@ class _TakeTestScreenState extends State<_TakeTestScreen>
   void _prevQuestion() {
     if (_current > 0) {
       _questionCtrl.reverse().then((_) {
-        setState(() => _current--);
+        setState(() {
+          _current--;
+          _answered = _answers.containsKey(_current);
+        });
         _questionCtrl.forward();
       });
     }
@@ -1174,10 +1227,7 @@ class _TakeTestScreenState extends State<_TakeTestScreen>
     _timer.cancel();
 
     final answers = _answers.entries
-        .map((e) => {
-              'questionIndex': e.key,
-              'selectedAnswer': e.value,
-            })
+        .map((e) => {'questionIndex': e.key, 'selectedAnswer': e.value})
         .toList();
 
     try {
@@ -1203,13 +1253,15 @@ class _TakeTestScreenState extends State<_TakeTestScreen>
                   FadeTransition(opacity: a, child: child),
               transitionDuration: const Duration(milliseconds: 400)));
     } on ApiException catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(_snackBar('Error: ${e.message}', AppColors.error));
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             _snackBar('Failed to submit. Try again.', AppColors.error));
+      }
     }
   }
 
@@ -1245,7 +1297,7 @@ class _TakeTestScreenState extends State<_TakeTestScreen>
                                 color: AppColors.gold.withOpacity(0.3))),
                         child: Text(
                             '$unanswered question${unanswered == 1 ? '' : 's'} unanswered',
-                            style: TextStyle(
+                            style: const TextStyle(
                                 color: AppColors.gold,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600),
@@ -1315,9 +1367,18 @@ class _TakeTestScreenState extends State<_TakeTestScreen>
 
   Widget _buildQuizContent() {
     final q = _questions[_current];
-    final options =
-        (q['options'] as List<dynamic>).map((e) => e.toString()).toList();
+
+    // ── FIX 4: Parse options safely. options may be List<dynamic> or List<String>.
+    final rawOpts = q['options'];
+    final List<String> options;
+    if (rawOpts is List) {
+      options = rawOpts.map((e) => e.toString()).toList();
+    } else {
+      options = [];
+    }
+
     final selected = _answers[_current];
+    final correctAnswer = q['correctAnswer'] as String? ?? '';
     final progress = (_current + 1) / _questions.length;
 
     return Column(children: [
@@ -1334,7 +1395,6 @@ class _TakeTestScreenState extends State<_TakeTestScreen>
                 }),
             Expanded(
                 child: Column(children: [
-              // Progress bar
               ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
@@ -1348,7 +1408,6 @@ class _TakeTestScreenState extends State<_TakeTestScreen>
                   style: AppTextStyles.label),
             ])),
             const SizedBox(width: 8),
-            // Timer
             Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -1380,7 +1439,10 @@ class _TakeTestScreenState extends State<_TakeTestScreen>
                 return GestureDetector(
                     onTap: () {
                       _questionCtrl.reverse().then((_) {
-                        setState(() => _current = i);
+                        setState(() {
+                          _current = i;
+                          _answered = _answers.containsKey(i);
+                        });
                         _questionCtrl.forward();
                       });
                     },
@@ -1404,7 +1466,7 @@ class _TakeTestScreenState extends State<_TakeTestScreen>
                             borderRadius: BorderRadius.circular(5))));
               })))),
 
-      // ── Question ──────────────────────────
+      // ── Question + Options ────────────────────────
       Expanded(
           child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -1457,12 +1519,57 @@ class _TakeTestScreenState extends State<_TakeTestScreen>
 
                             const SizedBox(height: 20),
 
-                            // ── FIX: added .toList() to the spread ──
+                            // ── FIX 5: Each option is now its own card.
+                            // After answering: correct = green, wrong = red, others = dimmed.
                             ...options.asMap().entries.map((entry) {
                               final idx = entry.key;
                               final opt = entry.value;
-                              final labels = ['A', 'B', 'C', 'D'];
+                              final labels = ['A', 'B', 'C', 'D', 'E'];
                               final isSelected = selected == opt;
+                              final isCorrect = opt == correctAnswer;
+
+                              // Colour logic
+                              Color? borderColor;
+                              Color? bgColor;
+                              Color textColor = AppColors.textLight;
+                              Widget? trailingIcon;
+
+                              if (_answered) {
+                                if (isCorrect) {
+                                  // Always highlight correct in green
+                                  borderColor = AppColors.success;
+                                  bgColor = AppColors.success.withOpacity(0.12);
+                                  textColor = AppColors.success;
+                                  trailingIcon = const Icon(
+                                      Icons.check_circle_rounded,
+                                      color: AppColors.success,
+                                      size: 20);
+                                } else if (isSelected && !isCorrect) {
+                                  // Wrong selection — red
+                                  borderColor = AppColors.error;
+                                  bgColor = AppColors.error.withOpacity(0.10);
+                                  textColor = AppColors.error;
+                                  trailingIcon = const Icon(
+                                      Icons.cancel_rounded,
+                                      color: AppColors.error,
+                                      size: 20);
+                                } else {
+                                  // Other options — dimmed
+                                  borderColor = AppColors.inputBorder;
+                                  bgColor = AppColors.bgCard.withOpacity(0.5);
+                                  textColor = AppColors.textMuted;
+                                }
+                              } else if (isSelected) {
+                                // Selected but not yet locked
+                                borderColor = const Color(0xFF00C9A7);
+                                bgColor =
+                                    const Color(0xFF00C9A7).withOpacity(0.12);
+                                textColor = const Color(0xFF00C9A7);
+                                trailingIcon = const Icon(
+                                    Icons.check_circle_rounded,
+                                    color: Color(0xFF00C9A7),
+                                    size: 20);
+                              }
 
                               return Padding(
                                   padding: const EdgeInsets.only(bottom: 12),
@@ -1470,46 +1577,41 @@ class _TakeTestScreenState extends State<_TakeTestScreen>
                                       onTap: () => _selectAnswer(opt),
                                       child: AnimatedContainer(
                                           duration:
-                                              const Duration(milliseconds: 200),
+                                              const Duration(milliseconds: 250),
                                           padding: const EdgeInsets.all(16),
                                           decoration: BoxDecoration(
-                                              gradient: isSelected
-                                                  ? const LinearGradient(
-                                                      colors: [
-                                                          Color(0xFF00C9A7),
-                                                          Color(0xFF007A64)
-                                                        ])
-                                                  : null,
-                                              color: isSelected
-                                                  ? null
-                                                  : AppColors.bgCard,
+                                              color:
+                                                  bgColor ?? AppColors.bgCard,
                                               borderRadius:
                                                   BorderRadius.circular(16),
                                               border: Border.all(
-                                                  color: isSelected
-                                                      ? Colors.transparent
-                                                      : AppColors.inputBorder,
+                                                  color: borderColor ??
+                                                      AppColors.inputBorder,
                                                   width: 1.5),
-                                              boxShadow: isSelected
+                                              boxShadow: (isSelected ||
+                                                      (_answered && isCorrect))
                                                   ? [
                                                       BoxShadow(
-                                                          color: const Color(
-                                                                  0xFF00C9A7)
-                                                              .withOpacity(0.3),
+                                                          color: (borderColor ??
+                                                                  Colors
+                                                                      .transparent)
+                                                              .withOpacity(
+                                                                  0.25),
                                                           blurRadius: 12,
                                                           offset: const Offset(
                                                               0, 4))
                                                     ]
                                                   : null),
                                           child: Row(children: [
+                                            // Label circle
                                             Container(
                                                 width: 32,
                                                 height: 32,
                                                 decoration: BoxDecoration(
-                                                    color: isSelected
-                                                        ? Colors.white
-                                                            .withOpacity(0.2)
-                                                        : AppColors.inputBg,
+                                                    color: (borderColor ??
+                                                            AppColors
+                                                                .inputBorder)
+                                                        .withOpacity(0.15),
                                                     borderRadius:
                                                         BorderRadius.circular(
                                                             10)),
@@ -1519,9 +1621,8 @@ class _TakeTestScreenState extends State<_TakeTestScreen>
                                                             ? labels[idx]
                                                             : '?',
                                                         style: TextStyle(
-                                                            color: isSelected
-                                                                ? Colors.white
-                                                                : AppColors
+                                                            color: borderColor ??
+                                                                AppColors
                                                                     .textMuted,
                                                             fontSize: 13,
                                                             fontWeight:
@@ -1531,19 +1632,41 @@ class _TakeTestScreenState extends State<_TakeTestScreen>
                                             Expanded(
                                                 child: Text(opt,
                                                     style: TextStyle(
-                                                        color: isSelected
-                                                            ? Colors.white
-                                                            : AppColors
-                                                                .textLight,
+                                                        color: textColor,
                                                         fontSize: 14,
                                                         height: 1.4))),
-                                            if (isSelected)
-                                              const Icon(
-                                                  Icons.check_circle_rounded,
-                                                  color: Colors.white,
-                                                  size: 20),
+                                            if (trailingIcon != null)
+                                              trailingIcon,
                                           ]))));
-                            }).toList(), // <-- THE FIX
+                            }),
+
+                            // Explanation (shown after answering)
+                            if (_answered &&
+                                (q['explanation'] as String? ?? '').isNotEmpty)
+                              Container(
+                                  margin: const EdgeInsets.only(bottom: 16),
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                      color: AppColors.violet.withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                          color: AppColors.violet
+                                              .withOpacity(0.25))),
+                                  child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text('💡',
+                                            style: TextStyle(fontSize: 16)),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                            child: Text(
+                                                q['explanation'] as String,
+                                                style: AppTextStyles.body
+                                                    .copyWith(
+                                                        fontSize: 13,
+                                                        height: 1.5))),
+                                      ])),
 
                             const SizedBox(height: 20),
                           ]))))),
@@ -1576,9 +1699,9 @@ class _TakeTestScreenState extends State<_TakeTestScreen>
                                   Color(0xFF007A64)
                                 ]),
                                 borderRadius: BorderRadius.circular(16)),
-                            child: Row(
+                            child: const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
-                                children: const [
+                                children: [
                                   Text('Next',
                                       style: TextStyle(
                                           color: Colors.white,
@@ -1605,9 +1728,9 @@ class _TakeTestScreenState extends State<_TakeTestScreen>
                                       blurRadius: 16,
                                       offset: const Offset(0, 4))
                                 ]),
-                            child: Row(
+                            child: const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
-                                children: const [
+                                children: [
                                   Text('Submit Quiz',
                                       style: TextStyle(
                                           color: Colors.white,
@@ -1623,7 +1746,7 @@ class _TakeTestScreenState extends State<_TakeTestScreen>
 }
 
 // ══════════════════════════════════════════
-// TEST RESULTS SCREEN
+// TEST RESULTS SCREEN (unchanged)
 // ══════════════════════════════════════════
 
 class _TestResultsScreen extends StatelessWidget {
@@ -1645,7 +1768,6 @@ class _TestResultsScreen extends StatelessWidget {
   int get _correct => (result['correctAnswers'] as num?)?.toInt() ?? 0;
   int get _wrong => (result['wrongAnswers'] as num?)?.toInt() ?? 0;
   int get _skipped => (result['skippedAnswers'] as num?)?.toInt() ?? 0;
-  int get _total => (result['totalQuestions'] as num?)?.toInt() ?? 0;
   String get _prediction => result['prediction'] as String? ?? '';
 
   Color get _scoreColor {
@@ -1679,8 +1801,6 @@ class _TestResultsScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Column(children: [
                     const SizedBox(height: 20),
-
-                    // ── Score circle ─────────────────
                     Center(
                         child: Stack(alignment: Alignment.center, children: [
                       SizedBox(
@@ -1711,19 +1831,14 @@ class _TestResultsScreen extends StatelessWidget {
                                 fontWeight: FontWeight.w600)),
                       ]),
                     ])),
-
                     const SizedBox(height: 24),
-
                     Text(title,
                         style: const TextStyle(
                             color: AppColors.textWhite,
                             fontSize: 18,
                             fontWeight: FontWeight.w700),
                         textAlign: TextAlign.center),
-
                     const SizedBox(height: 24),
-
-                    // ── Stats row ────────────────────
                     Row(children: [
                       _statBox('✅', '$_correct', 'Correct', AppColors.success),
                       const SizedBox(width: 10),
@@ -1733,10 +1848,7 @@ class _TestResultsScreen extends StatelessWidget {
                       const SizedBox(width: 10),
                       _statBox('⏱️', _timeTakenDisplay, 'Time', AppColors.cyan),
                     ]),
-
                     const SizedBox(height: 20),
-
-                    // ── Prediction box ───────────────
                     if (_prediction.isNotEmpty)
                       Container(
                           padding: const EdgeInsets.all(18),
@@ -1756,15 +1868,12 @@ class _TestResultsScreen extends StatelessWidget {
                                 const SizedBox(width: 12),
                                 Expanded(
                                     child: Text(_prediction,
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                             color: AppColors.textLight,
                                             fontSize: 14,
                                             height: 1.6))),
                               ])),
-
                     const SizedBox(height: 20),
-
-                    // ── Answer review ────────────────
                     GlassCard(
                         child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1863,12 +1972,9 @@ class _TestResultsScreen extends StatelessWidget {
                                             overflow: TextOverflow.ellipsis),
                                       ],
                                     ]));
-                          }).toList(),
+                          }),
                         ])),
-
                     const SizedBox(height: 24),
-
-                    // ── Buttons ──────────────────────
                     GlowButton(
                         text: 'Back to Quizzes',
                         icon: Icons.arrow_back_rounded,

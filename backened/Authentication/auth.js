@@ -16,8 +16,12 @@ const authMiddleware = (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.SECRET_KEY); // FIX — SECRET_KEY not JWT_SECRET
-    req.user = decoded;
+    const secret = process.env.JWT_SECRET || process.env.SECRET_KEY;
+    const decoded = jwt.verify(token, secret);
+    req.user = {
+      id: decoded.id || decoded._id || decoded.userId,
+      email: decoded.email,
+    };
     next();
   } catch (error) {
     res.status(401).json({ message: "Invalid or expired token" });

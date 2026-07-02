@@ -7,6 +7,7 @@ import Notes from "../models/notes.js"
 import authMiddleware from "../Authentication/auth.js";
 import dotenv from "dotenv";
 import { awardXP } from "../services/xpService.js";
+import { cleanupPdfCacheIfOrphaned } from "../utils/pdfHasher.js";
 dotenv.config();
 
 const router = express.Router();                   // fix: was importing router from user.js — wrong
@@ -353,7 +354,9 @@ router.delete("/delete-notes/:id", authMiddleware, async (req, res) => {
     if (note.userId.toString() !== req.user.id) {
       return res.status(403).json({ message: "Not authorized" });
     }
+    const pdfHash = note.pdfHash;
     await Notes.findByIdAndDelete(req.params.id);
+    if (pdfHash) await cleanupPdfCacheIfOrphaned(pdfHash);
     res.status(200).json({ message: "Note deleted successfully" });
   } catch (e) {
     res.status(500).json({ message: `Error: ${e.message}` });

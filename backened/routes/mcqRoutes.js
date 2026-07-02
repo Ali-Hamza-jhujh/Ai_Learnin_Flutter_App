@@ -6,6 +6,8 @@ import upload from "../middleware/upload.js";
 import MCQ from "../models/mcqs.js";
 import authMiddleware from "../Authentication/auth.js";
 import dotenv from "dotenv";
+import { awardXP } from "../services/xpService.js";
+import { cleanupPdfCacheIfOrphaned } from "../utils/pdfHasher.js";
 dotenv.config();
 
 const router = express.Router();
@@ -420,7 +422,9 @@ router.delete("/delete-mcq/:id", authMiddleware, async (req, res) => {
     if (mcq.userId.toString() !== req.user.id) {
       return res.status(403).json({ message: "Not authorized" });
     }
+    const pdfHash = mcq.pdfHash;
     await MCQ.findByIdAndDelete(req.params.id);
+    if (pdfHash) await cleanupPdfCacheIfOrphaned(pdfHash);
     res.status(200).json({ message: "MCQ set deleted successfully" });
   } catch (e) {
     res.status(500).json({ message: `Error: ${e.message}` });
@@ -481,7 +485,7 @@ router.post("/submit", authMiddleware, async (req, res) => {
     else prediction = "Significant revision needed. Re-study this chapter thoroughly.";
 
     // Dynamically import TestResult to avoid circular issues
-    const { default: TestResult } = await import("../models/testResult.js");
+    const { default: TestResult } = await import("../models/testresult.js");
 
     const result = await TestResult.create({
       userId: req.user.id,
@@ -526,7 +530,7 @@ router.post("/submit", authMiddleware, async (req, res) => {
 // ─── GET MY TEST HISTORY ──────────────────────
 router.get("/my-results", authMiddleware, async (req, res) => {
   try {
-    const { default: TestResult } = await import("../models/testResult.js");
+    const { default: TestResult } = await import("../models/testresult.js");
     const results = await TestResult.find({ userId: req.user.id })
       .sort({ createdAt: -1 })
       .select("-answers"); // exclude per-question detail for list view
@@ -539,7 +543,7 @@ router.get("/my-results", authMiddleware, async (req, res) => {
 // ─── GET SINGLE TEST RESULT (full detail) ─────
 router.get("/my-results/:id", authMiddleware, async (req, res) => {
   try {
-    const { default: TestResult } = await import("../models/testResult.js");
+    const { default: TestResult } = await import("../models/testresult.js");
     const result = await TestResult.findById(req.params.id);
     if (!result) return res.status(404).json({ message: "Result not found" });
     if (result.userId.toString() !== req.user.id) {

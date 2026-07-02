@@ -138,7 +138,7 @@ class _GlowButtonState extends State<GlowButton>
                 borderRadius: BorderRadius.circular(18),
                 boxShadow: [
                   BoxShadow(
-                      color: AppColors.violet.withOpacity(0.4),
+                      color: AppColors.violet.withValues(alpha: 0.4),
                       blurRadius: 24,
                       offset: const Offset(0, 8))
                 ]),
@@ -220,7 +220,7 @@ class _GoogleButtonState extends State<GoogleButton>
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(
                     color: _hover
-                        ? AppColors.violet.withOpacity(0.5)
+                        ? AppColors.violet.withValues(alpha: 0.5)
                         : AppColors.inputBorder,
                     width: 1.5)),
             child: Center(
@@ -433,14 +433,16 @@ class _SpacePainter extends CustomPainter {
     final gridPaint = Paint()
       ..color = const Color(0x08FFFFFF)
       ..strokeWidth = 1;
-    for (double x = 0; x < size.width; x += 80)
+    for (double x = 0; x < size.width; x += 80) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-    for (double y = 0; y < size.height; y += 80)
+    }
+    for (double y = 0; y < size.height; y += 80) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
 
     // Diagonal accent line
     final accentPaint = Paint()
-      ..color = AppColors.violet.withOpacity(0.06)
+      ..color = AppColors.violet.withValues(alpha: 0.06)
       ..strokeWidth = 1;
     canvas.drawLine(Offset(size.width * 0.6, 0),
         Offset(size.width, size.height * 0.5), accentPaint);
@@ -469,7 +471,7 @@ class GlassCard extends StatelessWidget {
             border: Border.all(color: const Color(0x1AFFFFFF), width: 1),
             boxShadow: [
               BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   blurRadius: 40,
                   offset: const Offset(0, 20))
             ]),
@@ -481,9 +483,9 @@ class GlassCard extends StatelessWidget {
 Widget buildErrorBanner(String msg) => Container(
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
-        color: AppColors.error.withOpacity(0.1),
+        color: AppColors.error.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.error.withOpacity(0.3))),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.3))),
     child: Row(children: [
       const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 18),
       const SizedBox(width: 10),
@@ -493,10 +495,10 @@ Widget buildErrorBanner(String msg) => Container(
     ]));
 
 // ── Or divider ──
-Widget buildDivider() => Row(children: [
+Widget buildDivider() => const Row(children: [
       Expanded(child: Divider(color: AppColors.divider)),
       Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+          padding: EdgeInsets.symmetric(horizontal: 14),
           child: Text('OR', style: AppTextStyles.label)),
       Expanded(child: Divider(color: AppColors.divider)),
     ]);
