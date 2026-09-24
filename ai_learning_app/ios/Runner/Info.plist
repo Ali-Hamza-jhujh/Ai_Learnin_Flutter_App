@@ -53,6 +53,17 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>StudyAI reads your Apple Health data on this device to show steps, heart rate, sleep, and other vitals, and to notify you at morning, afternoon, evening, or if a metric crosses a limit you set. Data stays on your phone.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>StudyAI can write hydration and weight that you log in the app into Apple Health.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>StudyAI uses motion data to count steps and activity when Health permissions are granted.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

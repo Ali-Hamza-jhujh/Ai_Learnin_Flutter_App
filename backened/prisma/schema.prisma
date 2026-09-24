@@ -1,0 +1,336 @@
+// This is your Prisma schema file for PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String    @id @default(uuid())
+  name                 String
+  email                String    @unique
+  password             String?
+  educationLevel       String    @default("undergraduate")
+  subject              String    @default("")
+  goal                 String    @default("")
+  googleId             String?   @unique
+  avatar               String    @default("")
+  profilePicture       String    @default("")
+  xp                   Int       @default(0)
+  streak               Int       @default(0)
+  lastActive           DateTime  @default(now())
+  lastStudyDate        DateTime?
+  examDate             DateTime?
+  examSubject          String?
+  freeGenerationUsed   Boolean   @default(false)
+  freeGenerationUsedAt DateTime?
+  achievements         Json      @default("[]")
+  activityMap          Json      @default("{}")
+  isVerified           Boolean   @default(false)
+  googleAuth           Boolean   @default(false)
+  isAdmin              Boolean   @default(false)
+  verifyToken          String?
+  verifyTokenExpiry    DateTime?
+  resetToken           String?
+  resetTokenExpiry     DateTime?
+  refreshToken         String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  savedVideos        SavedVideo[]
+  notes              Note[]
+  mcqs               MCQ[]
+  chats              Chat[]
+  groups             Group[]
+  communityPosts     CommunityPost[]
+  bookmarks          Bookmark[]
+  testResults        TestResult[]
+  dictionaryBookmarks DictionaryBookmark[]
+
+  @@map("users")
+}
+
+model SavedVideo {
+  id          String   @id @default(uuid())
+  userId      String
+  videoId     String
+  title       String?
+  channelName String?
+  thumbnail   String?
+  url         String?
+  duration    String?
+  views       String?
+  subject     String?
+  notes       String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId])
+  @@map("saved_videos")
+}
+
+model Note {
+  id                String   @id @default(uuid())
+  userId            String
+  pdfHash           String   @default("")
+  title             String
+  subject           String?
+  mode              String   @default("full")
+  documentType      String   @default("plain")
+  requestedChapters Json     @default("[]")
+  summaryType       String   @default("normal")
+  detectedChapters  Json     @default("[]")
+  chapters          Json     @default("[]")
+  notes             Json     @default("[]")
+  flashcards        Json     @default("[]")
+  provider          String?
+  language          String   @default("en")
+  isFavorite        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notes")
+}
+
+model MCQ {
+  id                String   @id @default(uuid())
+  userId            String
+  pdfHash           String   @default("")
+  title             String
+  subject           String?
+  chapter           String?
+  requestedChapters Json     @default("[]")
+  difficulty        String   @default("medium")
+  numMcqs           Int      @default(10)
+  mode              String   @default("practice")
+  documentType      String   @default("plain")
+  questions         Json     @default("[]")
+  results           Json     @default("[]")
+  provider          String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("mcqs")
+}
+
+model Chat {
+  id              String   @id @default(uuid())
+  userId          String
+  title           String
+  subject         String?
+  documentContext String   @default("")
+  documentName    String   @default("")
+  messages        Json     @default("[]")
+  totalMessages   Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("chats")
+}
+
+model Group {
+  id          String   @id @default(uuid())
+  name        String
+  description String   @default("")
+  subject     String   @default("")
+  inviteCode  String   @unique
+  createdBy   String
+  members     Json     @default("[]")
+  sharedNotes Json     @default("[]")
+  sharedMcqs  Json     @default("[]")
+  messages    Json     @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  creator User @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@map("groups")
+}
+
+model CommunityPost {
+  id        String   @id @default(uuid())
+  authorId  String
+  title     String
+  body      String
+  subject   String   @default("General")
+  upvotes   Json     @default("[]")
+  answers   Json     @default("[]")
+  isSolved  Boolean  @default(false)
+  views     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@map("community_posts")
+}
+
+model Battle {
+  id              String   @id @default(uuid())
+  challengerId    String
+  opponentId      String?
+  mcqSetId        String?
+  status          String   @default("pending")
+  challengerScore Int      @default(0)
+  opponentScore   Int      @default(0)
+  winnerId        String?
+  xpReward        Int      @default(50)
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("battles")
+}
+
+model Bookmark {
+  id         String   @id @default(uuid())
+  userId     String
+  itemType   String
+  itemId     String
+  highlights Json     @default("[]")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("bookmarks")
+}
+
+model TestResult {
+  id               String   @id @default(uuid())
+  userId           String
+  mcqId            String
+  title            String?
+  subject          String?
+  chapter          String?
+  totalQuestions   Int?
+  correctAnswers   Int?
+  wrongAnswers     Int?
+  skippedAnswers   Int?
+  scorePercent     Float?
+  timeTakenSeconds Int?
+  answers          Json     @default("[]")
+  prediction       String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("test_results")
+}
+
+model GenerationCache {
+  id          String   @id @default(uuid())
+  userId      String
+  chapterKey  String
+  mcqs        Json     @default("[]")
+  notes       Json     @default("[]")
+  provider    String
+  generatedAt DateTime @default(now())
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, chapterKey])
+  @@map("generation_caches")
+}
+
+model PdfCache {
+  id          String   @id @default(uuid())
+  pdfHash     String   @unique
+  fullText    String
+  chapters    Json     @default("[]")
+  pageCount   Int?
+  language    String   @default("en")
+  ocrUsed     Boolean  @default(false)
+  ocrProvider String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("pdf_caches")
+}
+
+model DictionaryItem {
+  id            String   @id @default(uuid())
+  title         String   @unique
+  slug          String   @unique
+  description   String
+  category      String
+  subcategory   String?
+  overview      Json?
+  clinicalInfo  Json?
+  images        Json     @default("[]")
+  references    Json     @default("[]")
+  researchPapers Json    @default("[]")
+  keywords      Json     @default("[]")
+  relatedTopics Json     @default("[]")
+  searchCount   Int      @default(0)
+  viewCount     Int      @default(0)
+  lastRefreshed DateTime @default(now())
+  dataSource    Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  bookmarks DictionaryBookmark[]
+
+  @@map("dictionary_items")
+}
+
+model DictionaryBookmark {
+  id        String   @id @default(uuid())
+  userId    String
+  itemId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dictionaryItem DictionaryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemId])
+  @@map("dictionary_bookmarks")
+}
+
+model DictionarySearchHistory {
+  id        String   @id @default(uuid())
+  userId    String?
+  query     String
+  timestamp DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("dictionary_search_histories")
+}
+
+model DictionaryViewHistory {
+  id        String   @id @default(uuid())
+  userId    String?
+  itemId    String
+  timestamp DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("dictionary_view_histories")
+}
+
+model DictionaryApiCache {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  response  Json
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("dictionary_api_caches")
+}

@@ -1,10 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import '../utils/app_theme.dart';
 import '../services/api_service.dart';
 import '../services/api_client.dart';
+import '../services/voice_input_service.dart';
+import '../widgets/tts_highlighting_controller.dart';
 
 // ══════════════════════════════════════════
 // CHAT TUTOR SCREEN — 3 screens:
@@ -60,10 +63,20 @@ class _ChatTutorScreenState extends State<ChatTutorScreen>
       }
     } on ApiException catch (e) {
       if (mounted) {
-        setState(() {
-          _error = e.message;
-          _loading = false;
-        });
+        if (e.isApiLimitError) {
+          // Navigate to API key entry screen when limit is reached (keep chat screen in stack)
+          Navigator.pushNamed(context, '/settings/api-keys').then((keySaved) {
+            if (keySaved == true && mounted) {
+              // Retry loading chats after key is saved
+              _loadChats();
+            }
+          });
+        } else {
+          setState(() {
+            _error = e.message;
+            _loading = false;
+          });
+        }
       }
     } catch (_) {
       if (mounted) {
@@ -86,9 +99,9 @@ class _ChatTutorScreenState extends State<ChatTutorScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return CupertinoPageScaffold(
         backgroundColor: AppColors.bg,
-        body: Stack(children: [
+        child: Stack(children: [
           const SpaceBackground(),
           SafeArea(
               child: Column(children: [
@@ -97,7 +110,7 @@ class _ChatTutorScreenState extends State<ChatTutorScreen>
                 child: _loading
                     ? const Center(
                         child:
-                            CircularProgressIndicator(color: Color(0xFFFF6B6B)))
+                            CupertinoActivityIndicator(radius: 12))
                     : _error != null
                         ? _buildError()
                         : _chats.isEmpty
@@ -128,7 +141,7 @@ class _ChatTutorScreenState extends State<ChatTutorScreen>
         const Spacer(),
         IconButton(
             onPressed: _loadChats,
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.textSub)),
+            icon: const Icon(CupertinoIcons.refresh, color: AppColors.textSub)),
       ]));
 
   Widget _buildEmpty() => Center(
@@ -167,7 +180,7 @@ class _ChatTutorScreenState extends State<ChatTutorScreen>
             const SizedBox(height: 32),
             GlowButton(
                 text: 'Start Chatting',
-                icon: Icons.chat_rounded,
+                icon: CupertinoIcons.chat_bubble_2,
                 gradient: const LinearGradient(
                     colors: [Color(0xFFFF6B6B), Color(0xFFFF8E53)]),
                 onPressed: _openNewChat),
@@ -181,7 +194,7 @@ class _ChatTutorScreenState extends State<ChatTutorScreen>
             const SizedBox(height: 16),
             GlowButton(
                 text: 'Retry',
-                icon: Icons.refresh_rounded,
+                icon: CupertinoIcons.refresh,
                 onPressed: _loadChats),
           ])));
 
@@ -213,7 +226,7 @@ class _ChatTutorScreenState extends State<ChatTutorScreen>
             decoration: BoxDecoration(
                 color: AppColors.error.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(18)),
-            child: const Icon(Icons.delete_rounded, color: AppColors.error)),
+            child: const Icon(CupertinoIcons.delete, color: AppColors.error)),
         onDismissed: (_) => _deleteChat(chat['_id'] as String),
         child: GestureDetector(
             onTap: () => _openChat(chat['_id'] as String, title),
@@ -263,7 +276,7 @@ class _ChatTutorScreenState extends State<ChatTutorScreen>
                                   AppTextStyles.label.copyWith(fontSize: 10)),
                         ]),
                       ])),
-                  const Icon(Icons.chevron_right_rounded,
+                  const Icon(CupertinoIcons.chevron_right,
                       color: AppColors.textMuted, size: 18),
                 ]))));
   }
@@ -286,7 +299,7 @@ class _ChatTutorScreenState extends State<ChatTutorScreen>
                     blurRadius: 20,
                     offset: const Offset(0, 8))
               ]),
-          child: const Icon(Icons.add_rounded, color: Colors.white, size: 28)));
+          child: const Icon(CupertinoIcons.add, color: Colors.white, size: 28)));
 
   void _openNewChat() async {
     final result = await Navigator.push<String?>(
@@ -410,9 +423,9 @@ class _NewChatScreenState extends State<_NewChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return CupertinoPageScaffold(
         backgroundColor: AppColors.bg,
-        body: Stack(children: [
+        child: Stack(children: [
           const SpaceBackground(),
           SafeArea(
               child: Column(children: [
@@ -548,7 +561,7 @@ class _NewChatScreenState extends State<_NewChatScreen> {
                                                   _fileName = '';
                                                 }),
                                             child: const Icon(
-                                                Icons.close_rounded,
+                                                CupertinoIcons.clear,
                                                 color: AppColors.textMuted,
                                                 size: 16)),
                                     ]))),
@@ -556,7 +569,7 @@ class _NewChatScreenState extends State<_NewChatScreen> {
                       const SizedBox(height: 24),
                       GlowButton(
                           text: 'Start Chat',
-                          icon: Icons.chat_rounded,
+                          icon: CupertinoIcons.chat_bubble_2,
                           isLoading: _loading,
                           gradient: const LinearGradient(
                               colors: [Color(0xFFFF6B6B), Color(0xFFFF8E53)]),
@@ -589,6 +602,10 @@ class _ChatRoomScreenState extends State<_ChatRoomScreen>
   bool _isTyping = false;
   String _streamingReply = '';
 
+  final VoiceInputService _voiceInput = VoiceInputService();
+  final TtsHighlightingController _ttsController = TtsHighlightingController();
+  bool _isListening = false;
+
   // FIX 1: Three separate controllers for staggered dot animation
   late AnimationController _dot1Ctrl;
   late AnimationController _dot2Ctrl;
@@ -597,6 +614,21 @@ class _ChatRoomScreenState extends State<_ChatRoomScreen>
   @override
   void initState() {
     super.initState();
+    _voiceInput.init();
+    
+    _voiceInput.onText.listen((text) {
+      if (mounted && text.isNotEmpty) {
+        setState(() => _msgCtrl.text = text);
+      }
+    });
+    
+    _voiceInput.onStatus.listen((status) {
+      if (mounted) {
+        if (status == 'done' || status == 'notListening') {
+          setState(() => _isListening = false);
+        }
+      }
+    });
 
     // FIX 1: Staggered dot animations with proper delays
     _dot1Ctrl = AnimationController(
@@ -625,6 +657,8 @@ class _ChatRoomScreenState extends State<_ChatRoomScreen>
     _dot3Ctrl.dispose();
     _msgCtrl.dispose();
     _scrollCtrl.dispose();
+    _voiceInput.stopListening();
+    _ttsController.dispose();
     super.dispose();
   }
 
@@ -691,6 +725,29 @@ class _ChatRoomScreenState extends State<_ChatRoomScreen>
         _scrollToBottom();
       }
     } catch (streamError) {
+      // Check if it's an API limit error
+      if (streamError is ApiException && streamError.isApiLimitError) {
+        if (mounted) {
+          Navigator.pushNamed(context, '/settings/api-keys');
+        }
+        return;
+      }
+      
+      // Check if offline model is suggested
+      if (streamError is ApiException && streamError.suggestOffline) {
+        if (mounted) {
+          setState(() {
+            _messages.add(const _ChatMessage(
+                role: 'assistant',
+                content: 'All API keys have reached their limits. Please consider using the offline model.'));
+            _streamingReply = '';
+            _isTyping = false;
+          });
+          _showOfflineModelSuggestion();
+        }
+        return;
+      }
+      
       // FIX 3: Fallback to non-streaming with original error preserved
       try {
         final res = await ChatService.sendMessage(widget.chatId, text);
@@ -703,7 +760,30 @@ class _ChatRoomScreenState extends State<_ChatRoomScreen>
           });
           _scrollToBottom();
         }
-      } catch (_) {
+      } catch (error) {
+        // Check if fallback also hit API limit
+        if (error is ApiException && error.isApiLimitError) {
+          if (mounted) {
+            Navigator.pushNamed(context, '/settings/api-keys');
+          }
+          return;
+        }
+        
+        // Check if offline model is suggested
+        if (error is ApiException && error.suggestOffline) {
+          if (mounted) {
+            setState(() {
+              _messages.add(const _ChatMessage(
+                  role: 'assistant',
+                  content: 'All API keys have reached their limits. Please consider using the offline model.'));
+              _streamingReply = '';
+              _isTyping = false;
+            });
+            _showOfflineModelSuggestion();
+          }
+          return;
+        }
+        
         if (mounted) {
           setState(() {
             _messages.add(const _ChatMessage(
@@ -791,11 +871,37 @@ class _ChatRoomScreenState extends State<_ChatRoomScreen>
                 ]))));
   }
 
+  void _showOfflineModelSuggestion() {
+    showCupertinoDialog(
+      context: context,
+      builder: (c) => CupertinoAlertDialog(
+        title: const Text('Add a free API key'),
+        content: const Text(
+          'Chat needs a Groq, Gemini, or Cerebras key. Offline model download was removed.',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(c),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            child: const Text('API keys'),
+            onPressed: () {
+              Navigator.pop(c);
+              Navigator.pushNamed(context, '/settings/api-keys');
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return CupertinoPageScaffold(
         backgroundColor: AppColors.bg,
-        body: Stack(children: [
+        child: Stack(children: [
           const SpaceBackground(),
           SafeArea(
               child: Column(children: [
@@ -851,7 +957,7 @@ class _ChatRoomScreenState extends State<_ChatRoomScreen>
                 child: _loadingHistory
                     ? const Center(
                         child:
-                            CircularProgressIndicator(color: Color(0xFFFF6B6B)))
+                            CupertinoActivityIndicator(radius: 12))
                     : _messages.isEmpty && !_isTyping
                         ? _buildWelcome()
                         : ListView.builder(
@@ -929,53 +1035,168 @@ class _ChatRoomScreenState extends State<_ChatRoomScreen>
 
   Widget _buildMessageBubble(_ChatMessage msg) {
     final isUser = msg.role == 'user';
+    final messageId = '${msg.role}_${msg.content.hashCode}';
+    
     return Padding(
-        padding: EdgeInsets.only(
-            bottom: 12, left: isUser ? 60 : 0, right: isUser ? 0 : 60),
-        child: Row(
-            mainAxisAlignment:
-                isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              if (!isUser) ...[
-                Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                            colors: [Color(0xFFFF6B6B), Color(0xFFFF8E53)]),
-                        borderRadius: BorderRadius.circular(10)),
-                    child: const Center(
-                        child: Text('🤖', style: TextStyle(fontSize: 14)))),
-                const SizedBox(width: 8),
-              ],
-              Flexible(
-                  child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                          gradient: isUser
-                              ? const LinearGradient(colors: [
-                                  Color(0xFFFF6B6B),
-                                  Color(0xFFFF8E53)
-                                ])
-                              : null,
-                          color: isUser ? null : AppColors.bgCard,
-                          borderRadius: BorderRadius.only(
-                              topLeft: const Radius.circular(18),
-                              topRight: const Radius.circular(18),
-                              bottomLeft: Radius.circular(isUser ? 18 : 4),
-                              bottomRight: Radius.circular(isUser ? 4 : 18)),
-                          border: isUser
-                              ? null
-                              : Border.all(color: AppColors.inputBorder)),
-                      child: SelectableText(msg.content,
-                          style: TextStyle(
-                              color:
-                                  isUser ? Colors.white : AppColors.textLight,
-                              fontSize: 14,
-                              height: 1.6)))),
-              if (isUser) const SizedBox(width: 8),
-            ]));
+      padding: EdgeInsets.only(
+          bottom: 12, left: isUser ? 60 : 0, right: isUser ? 0 : 60),
+      child: Row(
+        mainAxisAlignment:
+            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (!isUser) ...[
+            Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                        colors: [Color(0xFFFF6B6B), Color(0xFFFF8E53)]),
+                    borderRadius: BorderRadius.circular(10)),
+                child: const Center(
+                    child: Text('🤖', style: TextStyle(fontSize: 14)))),
+            const SizedBox(width: 8),
+          ],
+          Flexible(
+              child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                      gradient: isUser
+                          ? const LinearGradient(colors: [
+                              Color(0xFFFF6B6B),
+                              Color(0xFFFF8E53)
+                            ])
+                          : null,
+                      color: isUser ? null : AppColors.bgCard,
+                      borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(18),
+                          topRight: const Radius.circular(18),
+                          bottomLeft: Radius.circular(isUser ? 18 : 4),
+                          bottomRight: Radius.circular(isUser ? 4 : 18)),
+                      border: isUser
+                          ? null
+                          : Border.all(color: AppColors.inputBorder)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (!isUser)
+                        AnimatedBuilder(
+                          animation: _ttsController,
+                          builder: (context, child) {
+                            return _buildHighlightedText(msg.content, messageId);
+                          },
+                        )
+                      else
+                        SelectableText(msg.content,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                height: 1.6)),
+                      if (!isUser) ...[
+                        const SizedBox(height: 8),
+                        _buildTtsButton(msg.content, messageId),
+                      ]
+                    ]
+                  ))),
+          if (isUser) const SizedBox(width: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHighlightedText(String text, String messageId) {
+    final cleanText = text.replaceAll(RegExp(r'[*#_`~]'), '');
+    final isMessageActive = _ttsController.isMessageActive(messageId);
+    
+    if (!isMessageActive) {
+      return SelectableText(cleanText,
+          style: const TextStyle(
+              color: AppColors.textLight,
+              fontSize: 14,
+              height: 1.6));
+    }
+
+    final currentStart = _ttsController.currentStart;
+    final currentEnd = _ttsController.currentEnd;
+
+    if (currentStart == -1 || currentEnd == -1) {
+      return SelectableText(cleanText,
+          style: const TextStyle(
+              color: AppColors.textLight,
+              fontSize: 14,
+              height: 1.6));
+    }
+
+    // Build text spans directly with character-based highlighting
+    final spans = <TextSpan>[];
+    
+    // Ensure positions are within bounds
+    final safeStart = currentStart.clamp(0, cleanText.length);
+    final safeEnd = currentEnd.clamp(0, cleanText.length);
+    
+    // Before highlight
+    if (safeStart > 0) {
+      spans.add(TextSpan(
+        text: cleanText.substring(0, safeStart),
+        style: const TextStyle(
+            color: AppColors.textLight,
+            fontSize: 14,
+            height: 1.6),
+      ));
+    }
+    
+    // Highlighted portion
+    if (safeEnd > safeStart) {
+      spans.add(TextSpan(
+        text: cleanText.substring(safeStart, safeEnd),
+        style: const TextStyle(
+            color: AppColors.cyan,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            backgroundColor: Color(0xFFFFD700),
+            height: 1.6),
+      ));
+    }
+    
+    // After highlight
+    if (safeEnd < cleanText.length) {
+      spans.add(TextSpan(
+        text: cleanText.substring(safeEnd),
+        style: const TextStyle(
+            color: AppColors.textLight,
+            fontSize: 14,
+            height: 1.6),
+      ));
+    }
+
+    return SelectableText.rich(TextSpan(children: spans));
+  }
+
+  Widget _buildTtsButton(String text, String messageId) {
+    return AnimatedBuilder(
+      animation: _ttsController,
+      builder: (context, child) {
+        final isPlaying = _ttsController.isMessageActive(messageId);
+        final cleanText = text.replaceAll(RegExp(r'[*#_`~]'), '');
+        
+        return GestureDetector(
+          onTap: () {
+            if (isPlaying) {
+              _ttsController.stop();
+            } else {
+              _ttsController.speak(cleanText, messageId);
+            }
+          },
+          child: Icon(
+            Icons.volume_up_rounded,
+            color: isPlaying 
+                ? Colors.blue.shade400 
+                : AppColors.textMuted,
+            size: 20,
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildStreamingBubble() {
@@ -1051,21 +1272,44 @@ class _ChatRoomScreenState extends State<_ChatRoomScreen>
                       color: AppColors.inputBg,
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(color: AppColors.inputBorder)),
-                  child: TextField(
+                  child: CupertinoTextField(
                       controller: _msgCtrl,
                       style: const TextStyle(
                           color: AppColors.textWhite, fontSize: 15),
                       maxLines: 4,
                       minLines: 1,
                       textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                          hintText: 'Ask anything...',
-                          hintStyle: TextStyle(color: AppColors.textMuted),
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(
-                              horizontal: 18, vertical: 12)),
+                      placeholder: 'Ask anything...',
+                      placeholderStyle: const TextStyle(color: AppColors.textMuted),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 18, vertical: 12),
+                      decoration: null,
                       onChanged: (_) => setState(() {})))),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
+          GestureDetector(
+              onTap: () async {
+                if (_isListening) {
+                  await _voiceInput.stopListening();
+                  setState(() => _isListening = false);
+                } else {
+                  setState(() => _isListening = true);
+                  await _voiceInput.startListening();
+                }
+              },
+              child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 44,
+                  height: 48,
+                  decoration: BoxDecoration(
+                      color: _isListening ? AppColors.error.withValues(alpha: 0.1) : AppColors.inputBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: _isListening ? AppColors.error : AppColors.inputBorder)
+                  ),
+                  child: Icon(
+                      _isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
+                      color: _isListening ? AppColors.error : AppColors.textSub,
+                      size: 22))),
+          const SizedBox(width: 8),
           GestureDetector(
               onTap: _isTyping ? null : _sendMessage,
               child: AnimatedContainer(
@@ -1093,8 +1337,7 @@ class _ChatRoomScreenState extends State<_ChatRoomScreen>
                   child: _isTyping
                       ? const Padding(
                           padding: EdgeInsets.all(12),
-                          child: CircularProgressIndicator(
-                              color: Color(0xFFFF6B6B), strokeWidth: 2))
+                          child: CupertinoActivityIndicator(radius: 12))
                       : Icon(Icons.send_rounded,
                           color: _msgCtrl.text.trim().isNotEmpty
                               ? Colors.white

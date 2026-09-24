@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { createRequire } from "module";
-import PdfCache from "../models/PdfCache.js";
+import prisma from "../prisma.js";
 import { detectChapters } from "./chapterDetector.js";
 
 const require = createRequire(import.meta.url);
@@ -13,7 +13,10 @@ export function hashPdfBuffer(buffer) {
 export async function processPdfBuffer(buffer) {
   const pdfHash = hashPdfBuffer(buffer);
 
-  const existing = await PdfCache.findOne({ pdfHash }).lean();
+  const existing = await prisma.pdfCache.findUnique({
+    where: { pdfHash },
+  });
+
   if (existing) {
     return {
       cached: true,
@@ -22,23 +25,39 @@ export async function processPdfBuffer(buffer) {
       chapters: existing.chapters || [],
       pageCount: existing.pageCount,
       language: existing.language || "en",
+      ocrUsed: existing.ocrUsed === true,
+      ocrProvider: existing.ocrProvider || null,
     };
   }
 
   const parsed = await pdfParse(buffer);
-  const fullText = parsed.text || "";
+  const fullText = (parsed.text || "").trim();
+
+  if (!fullText) {
+    const error = new Error("This scanned PDF needs on-device OCR.");
+    error.statusCode = 422;
+    error.code = "SCANNED_PDF_REQUIRES_DEVICE_OCR";
+    throw error;
+  }
+
   const chapters = detectChapters(fullText).map(({ title, startIndex, endIndex }) => ({
     title,
     startIndex,
     endIndex,
   }));
 
-  await PdfCache.create({
-    pdfHash,
-    fullText,
-    chapters,
-    pageCount: parsed.numpages || 0,
-    language: "en",
+  await prisma.pdfCache.upsert({
+    where: { pdfHash },
+    update: {},
+    create: {
+      pdfHash,
+      fullText,
+      chapters,
+      pageCount: parsed.numpages || 0,
+      language: "en",
+      ocrUsed: false,
+      ocrProvider: null,
+    },
   });
 
   return {
@@ -48,11 +67,16 @@ export async function processPdfBuffer(buffer) {
     chapters,
     pageCount: parsed.numpages || 0,
     language: "en",
+    ocrUsed: false,
+    ocrProvider: null,
   };
 }
 
 export async function getPdfCacheByHash(pdfHash) {
-  const existing = await PdfCache.findOne({ pdfHash }).lean();
+  const existing = await prisma.pdfCache.findUnique({
+    where: { pdfHash },
+  });
+
   if (!existing) return null;
   return {
     cached: true,
@@ -61,21 +85,20 @@ export async function getPdfCacheByHash(pdfHash) {
     chapters: existing.chapters || [],
     pageCount: existing.pageCount,
     language: existing.language || "en",
+    ocrUsed: existing.ocrUsed === true,
+    ocrProvider: existing.ocrProvider || null,
   };
 }
 
 export async function cleanupPdfCacheIfOrphaned(pdfHash) {
   if (!pdfHash) return;
 
-  const Notes = (await import("../models/notes.js")).default;
-  const MCQ = (await import("../models/mcqs.js")).default;
-
   const [notesCount, mcqCount] = await Promise.all([
-    Notes.countDocuments({ pdfHash }),
-    MCQ.countDocuments({ pdfHash }),
+    prisma.note.count({ where: { pdfHash } }),
+    prisma.mCQ.count({ where: { pdfHash } }),
   ]);
 
   if (notesCount === 0 && mcqCount === 0) {
-    await PdfCache.deleteOne({ pdfHash });
+    await prisma.pdfCache.deleteMany({ where: { pdfHash } });
   }
 }

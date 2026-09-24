@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import '../utils/app_theme.dart';
 import '../services/api_service.dart';
 import '../services/api_client.dart';
 import 'login_screen.dart';
-import 'api_keys_screen.dart';
+import 'add_api_key_screen.dart';
+import '../services/localization_service.dart';
+import 'health_dashboard_screen.dart';
+import 'achievement_screen.dart';
 
 // ══════════════════════════════════════════
 // PROFILE SCREEN — 4 sections:
@@ -100,19 +104,24 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-        backgroundColor: AppColors.bg,
-        body: Stack(children: [
-          const SpaceBackground(),
-          SafeArea(
-              child: _loading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: AppColors.violet))
-                  : _error != null
-                      ? _buildError()
-                      : FadeTransition(
-                          opacity: _fadeAnim, child: _buildContent())),
-        ]));
+    final loc = LocalizationService();
+    final isRtl = loc.isRTL;
+    return Directionality(
+      textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+      child: CupertinoPageScaffold(
+          backgroundColor: AppColors.bg,
+          child: Stack(children: [
+            const SpaceBackground(),
+            SafeArea(
+                child: _loading
+                    ? const Center(
+                        child: CupertinoActivityIndicator(radius: 12))
+                    : _error != null
+                        ? _buildError()
+                        : FadeTransition(
+                            opacity: _fadeAnim, child: _buildContent())),
+          ])),
+    );
   }
 
   Widget _buildError() {
@@ -125,7 +134,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               const SizedBox(height: 16),
               GlowButton(
                   text: 'Retry',
-                  icon: Icons.refresh_rounded,
+                  icon: CupertinoIcons.refresh,
                   onPressed: _loadProfile),
             ])));
   }
@@ -375,13 +384,23 @@ class _ProfileScreenState extends State<ProfileScreen>
             ])));
   }
 
-  // ── ACHIEVEMENTS ──────────────────────
   Widget _buildAchievements() {
     final achievements = _getAchievements();
     return Padding(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _sectionTitle('🏅', 'Achievements'),
+          Row(
+            children: [
+              _sectionTitle('🏅', 'Achievements'),
+              const Spacer(),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(context, fadeSlideRoute(const AchievementScreen()));
+                },
+                child: const Text('View All', style: TextStyle(color: AppColors.cyan, fontSize: 12)),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
           SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -525,7 +544,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           const SizedBox(height: 12),
           GlassCard(
               child: Column(children: [
-            _settingRow(Icons.leaderboard_rounded, 'Leaderboard',
+            _settingRow(CupertinoIcons.chart_bar_alt_fill, 'Leaderboard',
                 'See your ranking', AppColors.cyan,
                 onTap: () => _openLeaderboard()),
             _divider(),
@@ -537,7 +556,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               if (!mounted || userId.isEmpty) return;
               Navigator.push(
                 context,
-                fadeSlideRoute(ApiKeysScreen(userId: userId)),
+                fadeSlideRoute(const AddApiKeyScreen()),
               );
             }),
             _divider(),
@@ -545,7 +564,16 @@ class _ProfileScreenState extends State<ProfileScreen>
                 'Update your password', AppColors.violet,
                 onTap: () => _showChangePassword()),
             _divider(),
-            _settingRow(Icons.person_outline_rounded, 'Edit Profile',
+            _settingRow(Icons.translate_rounded, 'App Language',
+                'Change localization language', AppColors.cyan,
+                onTap: () => _showLanguagePicker()),
+            _divider(),
+            _settingRow(CupertinoIcons.heart_fill, 'Health tracking',
+                'Health Connect permissions & alerts', AppColors.error,
+                onTap: () => Navigator.push(
+                    context, fadeSlideRoute(const HealthDashboardScreen()))),
+            _divider(),
+            _settingRow(CupertinoIcons.person, 'Edit Profile',
                 'Update your info', const Color(0xFF00C9A7),
                 onTap: () => _showEditProfile()),
             _divider(),
@@ -592,7 +620,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     Text(subtitle,
                         style: AppTextStyles.body.copyWith(fontSize: 12)),
                   ])),
-              const Icon(Icons.chevron_right_rounded,
+              const Icon(CupertinoIcons.chevron_right,
                   color: AppColors.textMuted, size: 20),
             ])));
   }
@@ -659,8 +687,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       Navigator.pop(sheetContext);
                       if (!mounted) return;
                       _loadProfile();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                          successSnackBar('Profile updated! ✅'));
+                      showCupertinoSuccess(context, 'Profile updated! ✅');
                     } catch (_) {}
                   }),
             ])));
@@ -722,8 +749,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           if (!ctx.mounted) return;
                           Navigator.pop(ctx);
                           if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                              successSnackBar('Password changed! 🔐'));
+                          showCupertinoSuccess(context, 'Password changed! 🔐');
                         } on ApiException catch (e) {
                           setModalState(() => error = e.message);
                         } catch (_) {
@@ -731,6 +757,41 @@ class _ProfileScreenState extends State<ProfileScreen>
                         }
                       }),
                 ]))));
+  }
+
+  void _showLanguagePicker() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (_) => CupertinoActionSheet(
+        title: const Text('Select AppLanguage', style: TextStyle(fontWeight: FontWeight.bold)),
+        message: const Text('Choose a localization language from Phase 1, 2, or 3'),
+        actions: LocalizationService.supportedLanguages.map((lang) {
+          final isSel = LocalizationService().currentLocale == lang['code'];
+          return CupertinoActionSheetAction(
+            onPressed: () async {
+              await LocalizationService().changeLanguage(lang['code']!);
+              if (mounted) setState(() {});
+              Navigator.pop(context);
+              showCupertinoSuccess(context, 'Language changed to ${lang['name']}!');
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(lang['name']!, style: TextStyle(color: isSel ? AppColors.cyan : AppColors.textWhite, fontSize: 16)),
+                if (isSel) ...[
+                  const SizedBox(width: 8),
+                  const Icon(Icons.check_rounded, color: AppColors.cyan, size: 16),
+                ]
+              ],
+            ),
+          );
+        }).toList(),
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel', style: TextStyle(color: AppColors.error)),
+        ),
+      ),
+    );
   }
 
   // ── LOGOUT CONFIRM ────────────────────
@@ -878,9 +939,9 @@ class _LeaderboardScreenState extends State<_LeaderboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return CupertinoPageScaffold(
         backgroundColor: AppColors.bg,
-        body: Stack(children: [
+        child: Stack(children: [
           const SpaceBackground(),
           SafeArea(
               child: Column(children: [
@@ -910,7 +971,7 @@ class _LeaderboardScreenState extends State<_LeaderboardScreen> {
                 child: _loading
                     ? const Center(
                         child:
-                            CircularProgressIndicator(color: AppColors.violet))
+                            CupertinoActivityIndicator(radius: 12))
                     : _error != null
                         ? Center(child: buildErrorBanner(_error!))
                         : _buildBoard()),

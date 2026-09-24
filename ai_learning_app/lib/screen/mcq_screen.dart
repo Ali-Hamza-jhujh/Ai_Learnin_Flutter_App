@@ -211,87 +211,101 @@ class _MCQScreenState extends State<MCQScreen> with TickerProviderStateMixin {
     final docType = mcq['documentType'] as String? ?? 'plain';
     final date = _formatDate(mcq['createdAt'] as String?);
 
-    return Dismissible(
-        key: Key(mcq['_id'] as String),
-        direction: DismissDirection.endToStart,
-        background: Container(
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.only(right: 20),
+    return GestureDetector(
+        onTap: () => _openTest(mcq['_id'] as String, title),
+        onLongPress: () async {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Delete Quiz'),
+              content: const Text('Are you sure you want to delete this quiz?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: TextButton.styleFrom(foregroundColor: Colors.red),
+                  child: const Text('Delete'),
+                ),
+              ],
+            ),
+          );
+          if (confirmed == true) {
+            _deleteMCQ(mcq['_id'] as String);
+          }
+        },
+        child: Container(
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-                color: AppColors.error.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(20)),
-            child: const Icon(Icons.delete_rounded, color: AppColors.error)),
-        onDismissed: (_) => _deleteMCQ(mcq['_id'] as String),
-        child: GestureDetector(
-            onTap: () => _openTest(mcq['_id'] as String, title),
-            child: Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                    color: AppColors.bgCard,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.inputBorder),
-                    boxShadow: [
-                      BoxShadow(
-                          color: Colors.black.withOpacity(0.15),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4))
+                color: AppColors.bgCard,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.inputBorder),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withOpacity(0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4))
+                ]),
+            child: Row(children: [
+              Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                          colors: [Color(0xFF00C9A7), Color(0xFF007A64)]),
+                      borderRadius: BorderRadius.circular(16)),
+                  child: Center(
+                      child: Text(docType == 'book' ? '📖' : '❓',
+                          style: const TextStyle(fontSize: 24)))),
+              const SizedBox(width: 14),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(title,
+                        style: const TextStyle(
+                            color: AppColors.textWhite,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 4),
+                    if (subject.isNotEmpty)
+                      Text(subject,
+                          style: AppTextStyles.body.copyWith(
+                              color: AppColors.cyan, fontSize: 12)),
+                    const SizedBox(height: 6),
+                    Row(children: [
+                      if (chapter.isNotEmpty)
+                        _chip(
+                            chapter.length > 20
+                                ? '${chapter.substring(0, 20)}...'
+                                : chapter,
+                            const Color(0xFF00C9A7)),
+                      const Spacer(),
+                      Text(date,
+                          style:
+                              AppTextStyles.label.copyWith(fontSize: 10)),
                     ]),
-                child: Row(children: [
-                  Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                              colors: [Color(0xFF00C9A7), Color(0xFF007A64)]),
-                          borderRadius: BorderRadius.circular(16)),
-                      child: Center(
-                          child: Text(docType == 'book' ? '📖' : '❓',
-                              style: const TextStyle(fontSize: 24)))),
-                  const SizedBox(width: 14),
-                  Expanded(
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                        Text(title,
-                            style: const TextStyle(
-                                color: AppColors.textWhite,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis),
-                        const SizedBox(height: 4),
-                        if (subject.isNotEmpty)
-                          Text(subject,
-                              style: AppTextStyles.body.copyWith(
-                                  color: AppColors.cyan, fontSize: 12)),
-                        const SizedBox(height: 6),
-                        Row(children: [
-                          if (chapter.isNotEmpty)
-                            _chip(
-                                chapter.length > 20
-                                    ? '${chapter.substring(0, 20)}...'
-                                    : chapter,
-                                const Color(0xFF00C9A7)),
-                          const Spacer(),
-                          Text(date,
-                              style:
-                                  AppTextStyles.label.copyWith(fontSize: 10)),
-                        ]),
-                      ])),
-                  const SizedBox(width: 8),
-                  Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                              colors: [Color(0xFF00C9A7), Color(0xFF007A64)]),
-                          borderRadius: BorderRadius.circular(20)),
-                      child: const Text('Start',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700))),
-                ]))));
+                  ])),
+              const SizedBox(width: 8),
+              Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                          colors: [Color(0xFF00C9A7), Color(0xFF007A64)]),
+                      borderRadius: BorderRadius.circular(20)),
+                  child: const Text('Start',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700))),
+            ]),
+          ),
+    );
   }
 
   Widget _chip(String text, Color color) => Container(
@@ -344,7 +358,7 @@ class _MCQScreenState extends State<MCQScreen> with TickerProviderStateMixin {
     Navigator.push(
         context,
         PageRouteBuilder(
-            pageBuilder: (_, a, __) => _TakeTestScreen(mcqId: id, title: title),
+            pageBuilder: (_, a, __) => TakeTestScreen(mcqId: id, title: title),
             transitionsBuilder: (_, a, __, child) =>
                 FadeTransition(opacity: a, child: child),
             transitionDuration: const Duration(milliseconds: 300)));
@@ -1053,15 +1067,16 @@ class _GenerateMCQScreenState extends State<_GenerateMCQScreen> {
 // TAKE TEST SCREEN
 // ══════════════════════════════════════════
 
-class _TakeTestScreen extends StatefulWidget {
+class TakeTestScreen extends StatefulWidget {
   final String mcqId;
   final String title;
-  const _TakeTestScreen({required this.mcqId, required this.title});
+  final bool fromGroup;
+  const TakeTestScreen({super.key, required this.mcqId, required this.title, this.fromGroup = false});
   @override
-  State<_TakeTestScreen> createState() => _TakeTestScreenState();
+  State<TakeTestScreen> createState() => _TakeTestScreenState();
 }
 
-class _TakeTestScreenState extends State<_TakeTestScreen>
+class _TakeTestScreenState extends State<TakeTestScreen>
     with TickerProviderStateMixin {
   List<Map<String, dynamic>> _questions = [];
   bool _loading = true;

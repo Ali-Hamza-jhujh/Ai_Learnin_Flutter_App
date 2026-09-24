@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_theme.dart';
@@ -124,9 +125,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     final page = _pages[_currentPage];
     final isLast = _currentPage == _pages.length - 1;
 
-    return Scaffold(
+    return CupertinoPageScaffold(
         backgroundColor: AppColors.bg,
-        body: Stack(children: [
+        child: Stack(children: [
           // ── Animated background ──────────
           _buildBackground(page),
 
@@ -138,7 +139,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   alignment: Alignment.topRight,
                   child: Padding(
                       padding: const EdgeInsets.only(right: 16, top: 8),
-                      child: TextButton(
+                      child: CupertinoButton(
+                          padding: EdgeInsets.zero,
                           onPressed: _skip,
                           child: const Text('Skip',
                               style: TextStyle(
@@ -173,7 +175,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 center: const Alignment(0.6, -0.6),
                 radius: 1.2,
                 colors: [
-              page.glowColor.withOpacity(0.15),
+              page.glowColor.withValues(alpha: 0.15),
               AppColors.bg,
             ])),
         // ── FIX: CustomPaint with StarPainter class ──
@@ -200,7 +202,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       borderRadius: BorderRadius.circular(40),
                       boxShadow: [
                         BoxShadow(
-                            color: page.glowColor.withOpacity(0.5),
+                            color: page.glowColor.withValues(alpha: 0.5),
                             blurRadius: 40,
                             spreadRadius: 8,
                             offset: const Offset(0, 16))
@@ -244,10 +246,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 10),
                       decoration: BoxDecoration(
-                          color: page.glowColor.withOpacity(0.12),
+                          color: page.glowColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(30),
                           border: Border.all(
-                              color: page.glowColor.withOpacity(0.3))),
+                              color: page.glowColor.withValues(alpha: 0.3))),
                       child: Text(f,
                           style: TextStyle(
                               color: page.glowColor,
@@ -277,7 +279,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                             : null,
                         color: active
                             ? null
-                            : AppColors.textMuted.withOpacity(0.3),
+                            : AppColors.textMuted.withValues(alpha: 0.3),
                         borderRadius: BorderRadius.circular(4)));
               })),
 
@@ -310,7 +312,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                             fontWeight: FontWeight.w800)),
                     if (!isLast) ...[
                       const SizedBox(width: 10),
-                      const Icon(Icons.arrow_forward_rounded,
+                      const Icon(CupertinoIcons.arrow_right,
                           color: Colors.white, size: 22),
                     ],
                   ])))),
@@ -343,4 +345,11 @@ class _OnboardPage {
     required this.subtitle,
     required this.features,
   });
+}
+
+class _SpacePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {}
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

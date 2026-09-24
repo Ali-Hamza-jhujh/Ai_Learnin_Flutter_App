@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import '../utils/app_theme.dart';
 import '../services/api_service.dart';
@@ -8,11 +9,19 @@ import 'notes_screen.dart';
 import 'mcq_screen.dart';
 import 'chat_tutor_screen.dart';
 import 'youtube_screen.dart';
+import 'study_planner_screen.dart';
+import 'health_dashboard_screen.dart';
+import 'groups_screen.dart';
+import 'bookmarks_screen.dart';
+import 'pomodoro_screen.dart';
+import 'community_screen.dart';
+import 'quiz_battle_screen.dart';
 import 'profile_screen.dart';
 import 'exam_prediction_screen.dart';
-import 'progress_dashboard_screen.dart';
 import 'flashcard_screen.dart';
-import 'api_keys_screen.dart';
+import 'dictionary_screen.dart';
+import 'smart_reader_screen.dart';
+import '../services/localization_service.dart';
 
 // ══════════════════════════════════════════
 // HOME SCREEN — StudyAI Dashboard
@@ -110,43 +119,48 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.bg,
-      extendBody: true,
-      body: Stack(children: [
-        const SpaceBackground(),
-        SafeArea(
-          bottom: false,
-          child: _loading
-              ? const Center(
-                  child: CircularProgressIndicator(color: AppColors.violet))
-              : RefreshIndicator(
-                  color: AppColors.violet,
-                  backgroundColor: AppColors.bgCard,
-                  onRefresh: _loadData,
-                  child: CustomScrollView(slivers: [
-                    SliverToBoxAdapter(
-                        child: FadeTransition(
-                            opacity: _headerFade,
-                            child: SlideTransition(
-                                position: _headerSlide,
-                                child: _buildHeader()))),
-                    SliverToBoxAdapter(
-                        child: FadeTransition(
-                            opacity: _cardsFade,
-                            child: Column(children: [
-                              _buildXPCard(),
-                              _buildStatsRow(),
-                              _buildDailyReward(),
-                              _buildFeaturesGrid(),
-                              _buildRecentActivity(),
-                              const SizedBox(height: 100),
-                            ]))),
-                  ])),
-        ),
-        // Bottom nav
-        Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomNav()),
-      ]),
+    final loc = LocalizationService();
+    final isRtl = loc.isRTL;
+    return Directionality(
+      textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+      child: CupertinoPageScaffold(
+        backgroundColor: AppColors.bg,
+        child: Stack(children: [
+          const SpaceBackground(),
+          SafeArea(
+            bottom: false,
+            child: _loading
+                ? const Center(child: CupertinoActivityIndicator(radius: 16))
+                : CustomScrollView(
+                    physics: const BouncingScrollPhysics(
+                        parent: AlwaysScrollableScrollPhysics()),
+                    slivers: [
+                        CupertinoSliverRefreshControl(
+                          onRefresh: _loadData,
+                        ),
+                        SliverToBoxAdapter(
+                            child: FadeTransition(
+                                opacity: _headerFade,
+                                child: SlideTransition(
+                                    position: _headerSlide,
+                                    child: _buildHeader()))),
+                        SliverToBoxAdapter(
+                            child: FadeTransition(
+                                opacity: _cardsFade,
+                                child: Column(children: [
+                                  _buildXPCard(),
+                                  _buildStatsRow(),
+                                  _buildDailyReward(),
+                                  _buildFeaturesGrid(),
+                                  _buildRecentActivity(),
+                                  const SizedBox(height: 100),
+                                ]))),
+                      ]),
+          ),
+          // Bottom nav
+          Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomNav()),
+        ]),
+      ),
     );
   }
 
@@ -233,7 +247,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         color: AppColors.inputBg,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: AppColors.inputBorder)),
-                    child: const Icon(Icons.logout_rounded,
+                    child: const Icon(CupertinoIcons.square_arrow_right,
                         color: AppColors.textMuted, size: 14))),
           ]),
         ]));
@@ -318,17 +332,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   // ── STATS ROW ─────────────────────────
   Widget _buildStatsRow() {
+    final loc = LocalizationService();
     return Padding(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
         child: Row(children: [
-          _statCard('📝', '$_notesCount', 'Notes', const Color(0xFF7B61FF)),
+          _statCard('📝', '$_notesCount', loc.translate('generateNotes'), const Color(0xFF7B61FF)),
           const SizedBox(width: 12),
-          _statCard('✅', '$_testsCount', 'Tests', const Color(0xFF00D4FF)),
+          _statCard('✅', '$_testsCount', loc.translate('generateQuiz'), const Color(0xFF00D4FF)),
           const SizedBox(width: 12),
           _statCard('📊', '${_avgScore.toStringAsFixed(0)}%', 'Avg Score',
               _avgScore >= 70 ? AppColors.success : AppColors.gold),
           const SizedBox(width: 12),
-          _statCard('🔥', '$_streak', 'Streak', AppColors.gold),
+          _statCard('🔥', '$_streak', loc.translate('streak'), AppColors.gold),
         ]));
   }
 
@@ -362,6 +377,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // ── DAILY REWARD BANNER ───────────────
   Widget _buildDailyReward() {
     if (_streak == 0) return const SizedBox.shrink();
+    final loc = LocalizationService();
     return Padding(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
         child: Container(
@@ -380,7 +396,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    Text('$_streak Day Streak! Keep it up!',
+                    Text('$_streak ${loc.translate("dayStreak")}! Keep it up!',
                         style: const TextStyle(
                             color: AppColors.gold,
                             fontSize: 14,
@@ -405,6 +421,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   // ── FEATURES GRID ─────────────────────
   Widget _buildFeaturesGrid() {
+    final loc = LocalizationService();
     return Padding(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -418,24 +435,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         color: Colors.white,
                         fontFamily: 'Georgia'))),
             const Spacer(),
-            Text('All Tools', style: AppTextStyles.link.copyWith(fontSize: 13)),
+            Text(loc.translate('seeAll'), style: AppTextStyles.link.copyWith(fontSize: 13)),
           ]),
           const SizedBox(height: 16),
           // 2x2 grid
           Row(children: [
             _featureTile(
-              icon: '📚',
-              title: 'AI Notes',
-              subtitle: 'Generate smart\nstudy notes',
+              icon: '🎧',
+              title: 'Smart Reader',
+              subtitle: 'Read & listen to\nany document',
               gradient: const [Color(0xFF7B61FF), Color(0xFF4A3FA0)],
               xpBadge: '+20 XP',
               onTap: () =>
-                  Navigator.push(context, fadeSlideRoute(const NotesScreen())),
+                  Navigator.push(context, fadeSlideRoute(const SmartReaderScreen())),
             ),
             const SizedBox(width: 14),
             _featureTile(
               icon: '❓',
-              title: 'MCQ Quiz',
+              title: loc.translate('generateQuiz'),
               subtitle: 'Test your\nknowledge',
               gradient: const [Color(0xFF00C9A7), Color(0xFF007A64)],
               xpBadge: '+35 XP',
@@ -447,7 +464,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           Row(children: [
             _featureTile(
               icon: '🤖',
-              title: 'AI Tutor',
+              title: loc.translate('tutor'),
               subtitle: 'Ask anything,\nlearn instantly',
               gradient: const [Color(0xFFFF6B6B), Color(0xFFB03A3A)],
               xpBadge: '+2 XP',
@@ -479,31 +496,96 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     const ExamPredictionScreen())), // → ExamPredictionScreen
           ),
           const SizedBox(height: 14),
+          _fullWidthTile(
+            icon: '📅',
+            title: loc.translate('studyPlanner'),
+            subtitle: 'Personalized countdown schedule & daily milestones',
+            gradient: const [Color(0xFFFF6B6B), Color(0xFFB03A3A)],
+            xpBadge: 'Countdown',
+            onTap: () => Navigator.push(
+                context, fadeSlideRoute(const StudyPlannerScreen())),
+          ),
+          const SizedBox(height: 14),
+          const SizedBox(height: 14),
+          _fullWidthTile(
+            icon: '🃏',
+            title: loc.translate('flashcards'),
+            subtitle:
+                'Spaced repetition review — flip cards to master any topic',
+            gradient: const [Color(0xFF7B61FF), Color(0xFF00D4FF)],
+            xpBadge: '+15 XP',
+            onTap: () => Navigator.push(
+              context,
+              fadeSlideRoute(const FlashcardScreen(cards: [])),
+            ),
+          ),
+          const SizedBox(height: 14),
           Row(children: [
             _featureTile(
-              icon: '🃏',
-              title: 'Flashcards',
-              subtitle: 'Spaced repetition\nreview',
-              gradient: const [Color(0xFF7B61FF), Color(0xFF00D4FF)],
-              xpBadge: '+15 XP',
-              onTap: () => Navigator.push(
-                context,
-                fadeSlideRoute(const FlashcardScreen(cards: [])),
-              ),
+              icon: '👥',
+              title: loc.translate('studyGroups'),
+              subtitle: loc.translate('joinFriendsChat'),
+              gradient: const [Color(0xFF3498DB), Color(0xFF2980B9)],
+              xpBadge: 'Social',
+              onTap: () => Navigator.push(context, fadeSlideRoute(const GroupsScreen())),
             ),
             const SizedBox(width: 14),
             _featureTile(
-              icon: '📈',
-              title: 'Dashboard',
-              subtitle: 'Progress &\nreadiness',
-              gradient: const [Color(0xFF34EEB6), Color(0xFF007A64)],
-              xpBadge: 'Insights',
-              onTap: () => Navigator.push(
-                context,
-                fadeSlideRoute(const ProgressDashboardScreen()),
-              ),
+              icon: '🔖',
+              title: loc.translate('bookmarks'),
+              subtitle: loc.translate('savedNotesMcqs'),
+              gradient: const [Color(0xFF9B59B6), Color(0xFF8E44AD)],
+              xpBadge: 'Saved',
+              onTap: () => Navigator.push(context, fadeSlideRoute(const BookmarksScreen())),
             ),
           ]),
+          const SizedBox(height: 14),
+          Row(children: [
+            _featureTile(
+              icon: '⏱️',
+              title: loc.translate('focusTimer'),
+              subtitle: loc.translate('pomodoroSessions'),
+              gradient: const [Color(0xFFE67E22), Color(0xFFD35400)],
+              xpBadge: '+5 XP',
+              onTap: () => Navigator.push(context, fadeSlideRoute(const PomodoroScreen())),
+            ),
+            const SizedBox(width: 14),
+            _featureTile(
+              icon: '💬',
+              title: loc.translate('community'),
+              subtitle: loc.translate('qaForum'),
+              gradient: const [Color(0xFF1ABC9C), Color(0xFF16A085)],
+              xpBadge: 'Help',
+              onTap: () => Navigator.push(context, fadeSlideRoute(const CommunityScreen())),
+            ),
+          ]),
+          const SizedBox(height: 14),
+          _fullWidthTile(
+            icon: '⚔️',
+            title: loc.translate('quizBattles'),
+            subtitle: loc.translate('challengeFriends'),
+            gradient: const [Color(0xFFE74C3C), Color(0xFFC0392B)],
+            xpBadge: '+50 XP',
+            onTap: () => Navigator.push(context, fadeSlideRoute(const QuizBattleScreen())),
+          ),
+          const SizedBox(height: 14),
+          _fullWidthTile(
+            icon: '📖',
+            title: 'Medical Dictionary',
+            subtitle: 'Premium Self-Growing Knowledge Hub',
+            gradient: const [Color(0xFF1E40AF), Color(0xFF2563EB)],
+            xpBadge: 'New',
+            onTap: () => Navigator.push(context, fadeSlideRoute(const DictionaryScreen())),
+          ),
+          const SizedBox(height: 14),
+          _fullWidthTile(
+            icon: '❤️',
+            title: 'Health Connect',
+            subtitle: 'Track vitals, steps, sleep — morning, afternoon & evening alerts',
+            gradient: const [Color(0xFFE11D48), Color(0xFF9F1239)],
+            xpBadge: 'On-device',
+            onTap: () => Navigator.push(context, fadeSlideRoute(const HealthDashboardScreen())),
+          ),
         ]));
   }
 
@@ -628,7 +710,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             fontSize: 11,
                             fontWeight: FontWeight.w700)),
                     const SizedBox(width: 4),
-                    const Icon(Icons.arrow_forward_rounded,
+                    const Icon(CupertinoIcons.arrow_right,
                         color: Colors.white, size: 14),
                   ])),
             ])));
@@ -649,25 +731,36 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       fontFamily: 'Georgia'))),
           const SizedBox(height: 14),
           _quickAction(
-              icon: Icons.upload_file_rounded,
+              icon: CupertinoIcons.headphones,
               color: AppColors.violet,
-              title: 'Upload PDF',
-              subtitle: 'Generate notes or MCQs from any PDF',
-              onTap: () {}),
+              title: 'Smart Auditory Reader',
+              subtitle: 'Read & listen to any PDF, text or study note',
+              onTap: () =>
+                  Navigator.push(context, fadeSlideRoute(const NotesScreen()))),
           const SizedBox(height: 10),
           _quickAction(
-              icon: Icons.leaderboard_rounded,
+              icon: CupertinoIcons.chart_bar_alt_fill,
               color: AppColors.cyan,
               title: 'Leaderboard',
               subtitle: 'See where you rank among students',
-              onTap: () {}),
+              onTap: () => Navigator.push(
+                  context, fadeSlideRoute(const ProfileScreen()))),
           const SizedBox(height: 10),
           _quickAction(
-              icon: Icons.trending_up_rounded,
+              icon: CupertinoIcons.graph_square,
               color: AppColors.success,
               title: 'My Progress',
               subtitle: 'View performance analytics',
-              onTap: () {}),
+              onTap: () => Navigator.push(
+                  context, fadeSlideRoute(const ExamPredictionScreen()))),
+          const SizedBox(height: 10),
+          _quickAction(
+              icon: CupertinoIcons.heart_fill,
+              color: AppColors.error,
+              title: 'Health tracking',
+              subtitle: 'Permissions, vitals, and scheduled notifications',
+              onTap: () => Navigator.push(
+                  context, fadeSlideRoute(const HealthDashboardScreen()))),
         ]));
   }
 
@@ -711,7 +804,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     Text(subtitle,
                         style: AppTextStyles.body.copyWith(fontSize: 12)),
                   ])),
-              const Icon(Icons.chevron_right_rounded,
+              const Icon(CupertinoIcons.chevron_right,
                   color: AppColors.textMuted, size: 20),
             ])));
   }
@@ -737,11 +830,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ]),
         child:
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          _navItem(0, Icons.home_rounded, 'Home'),
-          _navItem(1, Icons.description_outlined, 'Notes'),
-          _navItem(2, Icons.quiz_outlined, 'MCQ'),
-          _navItem(3, Icons.smart_toy_outlined, 'Tutor'),
-          _navItem(4, Icons.person_outline_rounded, 'Profile'),
+          _navItem(0, CupertinoIcons.house_fill, 'Home'),
+          _navItem(1, CupertinoIcons.doc_text, 'Notes'),
+          _navItem(2, CupertinoIcons.question_circle, 'MCQ'),
+          _navItem(3, CupertinoIcons.person_solid, 'Tutor'),
+          _navItem(4, CupertinoIcons.person, 'Profile'),
         ]));
   }
 

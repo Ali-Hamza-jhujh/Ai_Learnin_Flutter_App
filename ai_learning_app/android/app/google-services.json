@@ -1,20 +1,20 @@
 {
   "project_info": {
-    "project_number": "709449691227",
-    "project_id": "calculator-ce8e9",
-    "storage_bucket": "calculator-ce8e9.firebasestorage.app"
+    "project_number": "715913670181",
+    "project_id": "ai-study-app-b192f",
+    "storage_bucket": "ai-study-app-b192f.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:709449691227:android:7530f1460ce66f564ccf7e",
+        "mobilesdk_app_id": "1:715913670181:android:3cba37d489c23d9218d9cc",
         "android_client_info": {
           "package_name": "com.example.ai_learning_app"
         }
       },
       "oauth_client": [
         {
-          "client_id": "709449691227-d3kl45p7tdh5gs4g57rou4qbk7tn0jsp.apps.googleusercontent.com",
+          "client_id": "715913670181-0vru1t33e7jbqmflj1pt7fh14s2tmoo9.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.example.ai_learning_app",
@@ -22,21 +22,28 @@
           }
         },
         {
-          "client_id": "709449691227-tj0gfplo7rsihdsgbtb666jfcce6mto1.apps.googleusercontent.com",
+          "client_id": "715913670181-13qncu03f9d1tnjnb5svkqheubc6p1t1.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyDhRYYkt2Ft1Y6Z_sNZWfqfijPeeP4tVaM"
+          "current_key": "AIzaSyCQ6vIr0DShNnKeUGfnu8OvEj0lmNOt8nQ"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "709449691227-tj0gfplo7rsihdsgbtb666jfcce6mto1.apps.googleusercontent.com",
+              "client_id": "715913670181-13qncu03f9d1tnjnb5svkqheubc6p1t1.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "715913670181-sph5tnsuv8t53qlj42cst8177t8km73r.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.aiLearningApp"
+              }
             }
           ]
         }

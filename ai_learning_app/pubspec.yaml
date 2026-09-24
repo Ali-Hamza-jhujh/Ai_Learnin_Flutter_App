@@ -11,14 +11,14 @@ dependencies:
     sdk: flutter
 
   google_fonts: ^6.2.1
-  flutter_secure_storage: ^9.2.4
+  flutter_secure_storage: ^10.3.1
   http: ^1.2.1
   dio: ^5.8.0+1
   connectivity_plus: ^6.1.4
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   google_sign_in: ^6.2.1
-  device_info_plus: ^11.3.3
+  device_info_plus: ^12.4.0
   file_picker: ^8.0.3
   flutter_tts: ^4.2.2
   fl_chart: ^0.68.0
@@ -33,6 +33,7 @@ dependencies:
   intl: ^0.20.2
   path_provider: ^2.1.5
   share_plus: ^10.1.4
+  mobile_scanner: ^7.4.0
   url_launcher: ^6.3.0
   shimmer: ^3.0.0
   cached_network_image: ^3.3.1
@@ -42,6 +43,22 @@ dependencies:
   shared_preferences: ^2.2.3
   webview_flutter: ^4.7.0
   cupertino_icons: ^1.0.6
+  health: 13.1.4
+  permission_handler: ^11.3.1
+  timezone: ^0.10.0
+  flutter_timezone: ^4.1.1
+  workmanager: ^0.9.0
+  pedometer: ^4.1.1
+  pdf: ^3.10.7
+  pdfx: ^2.6.0
+  flutter_tesseract_ocr: ^0.4.31
+  google_mlkit_translation: ^0.14.0
+  speech_to_text: ^7.0.0
+  model_viewer_plus: ^1.7.0
+  flutter_localizations:
+    sdk: flutter
+  syncfusion_flutter_pdf: ^33.2.13
+  syncfusion_flutter_pdfviewer: ^33.2.13
 
 dev_dependencies:
   flutter_test:
@@ -57,8 +74,15 @@ flutter_launcher_icons:
   adaptive_icon_foreground: "assets/icon/app_icon.png"
   remove_alpha_ios: true
 
+dependency_overrides:
+  device_info_plus: ^12.4.0
+
 flutter:
   uses-material-design: true
   assets:
     - assets/images/
     - assets/icon/
+    - assets/models/
+    - assets/tessdata_config.json
+    - assets/tessdata/
+    - assets/i18n/

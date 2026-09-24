@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screen/login_screen.dart';
@@ -10,10 +12,22 @@ import 'services/cache/local_cache_service.dart';
 import 'utils/app_theme.dart';
 import 'core/constants/app_constants.dart';
 
+import 'screen/disclaimer_screen.dart';
+import 'screen/add_api_key_screen.dart';
+import 'screen/health_dashboard_screen.dart';
+import 'screen/ai_config_choice_screen.dart';
+
+import 'services/localization_service.dart';
+import 'services/health_connect_service.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   await LocalCacheService.init();
+  await LocalizationService().init();
+  try {
+    await HealthConnectService.instance.bootstrap();
+  } catch (_) {}
 
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -33,22 +47,54 @@ class StudyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: AppConstants.appName,
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        scaffoldBackgroundColor: AppColors.bg,
-        colorScheme: const ColorScheme.dark(
-          primary: AppColors.violet,
-          secondary: AppColors.cyan,
-          surface: AppColors.bgCard,
-        ),
-        useMaterial3: true,
-        fontFamily: 'Georgia',
-      ),
-      home: const SplashRouter(),
+    return ListenableBuilder(
+      listenable: LocalizationService(),
+      builder: (context, _) {
+        return CupertinoApp(
+          title: AppConstants.appName,
+          locale: Locale(LocalizationService().currentLocale),
+          debugShowCheckedModeBanner: false,
+          theme: const CupertinoThemeData(
+            scaffoldBackgroundColor: AppColors.bg,
+            primaryColor: AppColors.violet,
+            barBackgroundColor: AppColors.bgCard,
+            textTheme: CupertinoTextThemeData(
+              primaryColor: AppColors.textWhite,
+            ),
+          ),
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('en'),
+            Locale('ur'),
+            Locale('ar'),
+            Locale('es'),
+            Locale('hi'),
+            Locale('zh'),
+            Locale('fr'),
+            Locale('pt'),
+            Locale('de'),
+            Locale('ja'),
+            Locale('ko'),
+            Locale('tr'),
+            Locale('ru'),
+            Locale('id'),
+            Locale('vi'),
+          ],
+          home: const SplashRouter(),
+      routes: {
+        '/disclaimer': (context) => const DisclaimerScreen(),
+        '/settings/api-keys': (context) => const AddApiKeyScreen(),
+        '/health': (context) => const HealthDashboardScreen(),
+        '/ai-config-choice': (context) => const AIConfigChoiceScreen(),
+      },
     );
-  }
+  },
+);
+}
 }
 
 // ══════════════════════════════════════════
@@ -117,9 +163,9 @@ class _SplashRouterState extends State<SplashRouter>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return CupertinoPageScaffold(
         backgroundColor: AppColors.bg,
-        body: Stack(children: [
+        child: Stack(children: [
           const SpaceBackground(),
           Center(
             child: AnimatedBuilder(
@@ -141,7 +187,7 @@ class _SplashRouterState extends State<SplashRouter>
                                       boxShadow: [
                                         BoxShadow(
                                             color: AppColors.violet
-                                                .withOpacity(0.6),
+                                                .withValues(alpha: 0.6),
                                             blurRadius: 50,
                                             spreadRadius: 5,
                                             offset: const Offset(0, 16))
@@ -223,11 +269,11 @@ class _LoadingDotState extends State<_LoadingDot>
             height: 8,
             margin: const EdgeInsets.symmetric(horizontal: 4),
             decoration: BoxDecoration(
-                color: AppColors.violet.withOpacity(_anim.value),
+                color: AppColors.violet.withValues(alpha: _anim.value),
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                      color: AppColors.violet.withOpacity(_anim.value * 0.5),
+                      color: AppColors.violet.withValues(alpha: _anim.value * 0.5),
                       blurRadius: 8)
                 ])));
   }

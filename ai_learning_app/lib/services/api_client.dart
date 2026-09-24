@@ -2,25 +2,35 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'key_storage_service.dart';
 
 // ══════════════════════════════════════════
 // CONFIGURATION
 // ══════════════════════════════════════════
 
 class ApiConfig {
+  // Configure release builds without committing a production endpoint:
+  // flutter build appbundle --dart-define=API_BASE_URL=https://api.example.com
+  static const String _configuredBaseUrl =
+      String.fromEnvironment('API_BASE_URL');
   // ── HOW TO FIND YOUR PC IP ──
   // Run in CMD: ipconfig
   // Look for "IPv4 Address" under your WiFi adapter
   // Example: 192.168.1.5
   // Your phone and PC must be on the SAME WiFi network
 
-  static const String _localIp = '192.168.1.100'; // ← change to your PC IPv4
+  static const String _localIp = '192.168.1.5'; // ← change to your PC IPv4
   static const String devUrl = 'http://$_localIp:5000';
   static const String prodUrl =
       'https://your-app.railway.app'; // ← change when deployed
 
   static const bool isProduction = false;
-  static String get baseUrl => isProduction ? prodUrl : devUrl;
+  static String get baseUrl {
+    final raw = _configuredBaseUrl.isNotEmpty
+        ? _configuredBaseUrl
+        : (isProduction ? prodUrl : devUrl);
+    return raw.endsWith('/') ? raw.substring(0, raw.length - 1) : raw;
+  }
 }
 
 // ══════════════════════════════════════════
@@ -72,8 +82,10 @@ class TokenManager {
 class ApiException implements Exception {
   final String message;
   final int? statusCode;
+  final bool isApiLimitError;
+  final bool suggestOffline;
 
-  ApiException(this.message, {this.statusCode});
+  ApiException(this.message, {this.statusCode, this.isApiLimitError = false, this.suggestOffline = false});
 
   @override
   String toString() => message;
@@ -97,10 +109,32 @@ class ApiClient {
 
   static Map<String, dynamic> _parse(http.Response res) {
     try {
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final decoded = jsonDecode(res.body);
+      // Handle JSON array responses (e.g. /api/dictionary/category/:cat)
+      if (decoded is List) {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          return {"data": decoded};
+        }
+        throw ApiException('Server error', statusCode: res.statusCode);
+      }
+      final body = decoded as Map<String, dynamic>;
       if (res.statusCode >= 200 && res.statusCode < 300) return body;
       final message = body['message'] ?? 'Something went wrong';
-      throw ApiException(message, statusCode: res.statusCode);
+      
+      // Check for API limit errors
+      final isApiLimit = message.toLowerCase().contains('limit') || 
+                        message.toLowerCase().contains('quota') ||
+                        message.toLowerCase().contains('free trial') ||
+                        message.toLowerCase().contains('api key') ||
+                        message.toLowerCase().contains('invalid') ||
+                        message.toLowerCase().contains('expired') ||
+                        res.statusCode == 429 ||
+                        res.statusCode == 401;
+      
+      // Check if offline model is suggested
+      final suggestOffline = body['suggestOffline'] == true;
+                        
+      throw ApiException(message, statusCode: res.statusCode, isApiLimitError: isApiLimit, suggestOffline: suggestOffline);
     } catch (e) {
       if (e is ApiException) rethrow;
       throw ApiException('Failed to parse response: ${res.body}',
@@ -112,13 +146,14 @@ class ApiClient {
     String path, {
     bool auth = true,
     Map<String, String>? queryParams,
+    Duration timeout = const Duration(seconds: 15),
   }) async {
     try {
       var uri = Uri.parse('$_base$path');
       if (queryParams != null) uri = uri.replace(queryParameters: queryParams);
       final res = await http
           .get(uri, headers: await _headers(auth: auth))
-          .timeout(const Duration(seconds: 15));
+          .timeout(timeout);
       return _parse(res);
     } on SocketException {
       throw ApiException(
@@ -134,6 +169,7 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? body,
     bool auth = true,
+    Duration timeout = const Duration(seconds: 60),
   }) async {
     try {
       final res = await http
@@ -142,7 +178,7 @@ class ApiClient {
             headers: await _headers(auth: auth),
             body: body != null ? jsonEncode(body) : null,
           )
-          .timeout(const Duration(seconds: 60));
+          .timeout(timeout);
       return _parse(res);
     } on SocketException {
       throw ApiException(
@@ -230,6 +266,19 @@ class ApiClient {
       final request = http.MultipartRequest('POST', Uri.parse('$_base$path'));
       if (token != null) request.headers['Authorization'] = 'Bearer $token';
       if (fields != null) request.fields.addAll(fields);
+      
+      // Add user API keys to headers if available
+      final keys = await KeyStorageService.getAllKeys();
+      if (keys['groq']?.isNotEmpty == true) {
+        request.headers['x-groq-key'] = keys['groq']!;
+      }
+      if (keys['gemini']?.isNotEmpty == true) {
+        request.headers['x-gemini-key'] = keys['gemini']!;
+      }
+      if (keys['cerebras']?.isNotEmpty == true) {
+        request.headers['x-cerebras-key'] = keys['cerebras']!;
+      }
+      
       request.files
           .add(await http.MultipartFile.fromPath(fileField, file.path));
       final streamed =
@@ -241,6 +290,11 @@ class ApiClient {
     } on ApiException {
       rethrow;
     } catch (e) {
+      // Check if it's a 401 error from the response
+      if (e.toString().contains('401') || e.toString().contains('API key')) {
+        throw ApiException('API key is invalid or expired. Please configure your API keys.', 
+                          statusCode: 401, isApiLimitError: true);
+      }
       throw ApiException('Upload error: $e');
     }
   }
@@ -257,6 +311,18 @@ class ApiClient {
       request.headers['Accept'] = 'text/event-stream';
       if (token != null) request.headers['Authorization'] = 'Bearer $token';
       if (body != null) request.body = jsonEncode(body);
+      
+      // Add user API keys to headers if available
+      final keys = await KeyStorageService.getAllKeys();
+      if (keys['groq']?.isNotEmpty == true) {
+        request.headers['x-groq-key'] = keys['groq']!;
+      }
+      if (keys['gemini']?.isNotEmpty == true) {
+        request.headers['x-gemini-key'] = keys['gemini']!;
+      }
+      if (keys['cerebras']?.isNotEmpty == true) {
+        request.headers['x-cerebras-key'] = keys['cerebras']!;
+      }
 
       final response = await client.send(request);
       String buffer = '';

@@ -17,7 +17,11 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB
+    fieldSize: 2 * 1024 * 1024, // enough for verified on-device OCR text
+    fields: 10,
+  },
 });
 
 export default upload;

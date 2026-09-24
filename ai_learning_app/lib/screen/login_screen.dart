@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../utils/app_theme.dart';
 import '../services/api_service.dart';
@@ -63,10 +64,9 @@ class _LoginScreenState extends State<LoginScreen>
         password: _passCtrl.text,
       );
       if (!mounted) return;
+      showCupertinoSuccess(context, 'Welcome back! 🚀');
       Navigator.pushReplacement(
           context, MaterialPageRoute(builder: (_) => const HomeScreen()));
-      ScaffoldMessenger.of(context)
-          .showSnackBar(successSnackBar('Welcome back! 🚀'));
     } on ApiException catch (e) {
       setState(() => _error = e.message);
     } catch (e) {
@@ -125,8 +125,7 @@ class _LoginScreenState extends State<LoginScreen>
         );
       } else {
         // Existing user — go to home
-        ScaffoldMessenger.of(context).showSnackBar(
-            successSnackBar('Welcome back, ${account.displayName}! 🚀'));
+        showCupertinoSuccess(context, 'Welcome back, ${account.displayName}! 🚀');
         Navigator.pushReplacement(
             context, MaterialPageRoute(builder: (_) => const HomeScreen()));
       }
@@ -141,9 +140,9 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return CupertinoPageScaffold(
       backgroundColor: AppColors.bg,
-      body: Stack(children: [
+      child: Stack(children: [
         const SpaceBackground(),
         SafeArea(
           child: FadeTransition(
@@ -242,6 +241,40 @@ class _LoginScreenState extends State<LoginScreen>
                           icon: Icons.arrow_forward_rounded,
                           isLoading: _loading,
                           onPressed: _login,
+                        ),
+                        const SizedBox(height: 14),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final guestUser = {
+                              "_id": "offline_guest_id",
+                              "name": "Guest Student",
+                              "email": "guest@studyai.app",
+                              "level": {
+                                "level": 3,
+                                "title": "Scholar Elite",
+                                "progressPercent": 45,
+                                "xpToNextLevel": 350
+                              },
+                              "xp": 820,
+                              "streak": 5
+                            };
+                            await TokenManager.saveToken("offline_guest_token");
+                            await TokenManager.saveUser(guestUser);
+                            if (mounted) {
+                              Navigator.pushReplacement(context, fadeSlideRoute(const HomeScreen()));
+                            }
+                          },
+                          icon: const Icon(Icons.offline_bolt_rounded, color: AppColors.cyan, size: 18),
+                          label: const Text(
+                            'Enter Offline / Guest Mode',
+                            style: TextStyle(color: AppColors.cyan, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 48),
+                            side: BorderSide(color: AppColors.cyan.withOpacity(0.4), width: 1.5),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            backgroundColor: AppColors.cyan.withOpacity(0.05),
+                          ),
                         ),
                       ],
                     ),

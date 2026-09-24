@@ -1,7 +1,12 @@
 const MIN_CHAPTER_WORDS = 200;
 
 function wordCount(text) {
-  return text.trim().split(/\s+/).filter(Boolean).length;
+  const whitespaceSeparatedWords = text.trim().split(/\s+/).filter(Boolean).length;
+  // Chinese does not normally use spaces. Counting CJK ideographs keeps the
+  // chapter-size threshold meaningful for Simplified Chinese OCR output while
+  // retaining ordinary word counts for the other supported languages.
+  const cjkCharacters = (text.match(/[\u3400-\u9FFF]/g) || []).length;
+  return Math.max(whitespaceSeparatedWords, cjkCharacters);
 }
 
 export function detectChapters(text) {
@@ -25,15 +30,27 @@ export function detectChapters(text) {
     if (!trimmed) continue;
 
     const isChapter =
+      // English
       /^chapter\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)/i.test(
         trimmed
       ) ||
       /^ch\.?\s*\d+/i.test(trimmed) ||
-      /^\d+\.\s+[A-Z]/.test(trimmed) ||
-      /^[IVXLC]+\.\s+[A-Z]/.test(trimmed) ||
+      // German
+      /^(kapitel|abschnitt)\s*(\d+|[ivxlc]+)/i.test(trimmed) ||
+      // Russian
+      /^(глава|раздел)\s*[\dIVXLC]+/iu.test(trimmed) ||
+      // Arabic (including Arabic-Indic digits)
+      /^(الفصل|الباب)\s*[0-9٠-٩]+/u.test(trimmed) ||
+      // Simplified Chinese: 第1章 / 第一章 / 第1节
+      /^第\s*[0-9一二三四五六七八九十百千]+\s*[章节篇]/u.test(trimmed) ||
+      // Numbered headings in all supported scripts.
+      /^\d+\.\s+\S/u.test(trimmed) ||
+      /^[IVXLC]+\.\s+\S/i.test(trimmed) ||
       (/^[A-Z][A-Z0-9\s\-:]{3,58}$/.test(trimmed) && trimmed.length < 60);
 
-    if (isChapter && trimmed.length > 3 && trimmed.length < 100) {
+    // A standard Chinese heading such as "第一章" has exactly three
+    // characters, while English headings are naturally longer.
+    if (isChapter && trimmed.length >= 3 && trimmed.length < 100) {
       const position = text.indexOf(trimmed, currentIndex);
       if (position !== -1) {
         headings.push({ title: trimmed, startIndex: position });

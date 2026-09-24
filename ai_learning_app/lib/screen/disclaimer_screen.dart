@@ -1,20 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import '../utils/app_theme.dart';
 import '../core/theme/app_typography.dart';
 import '../core/theme/lumio_theme.dart';
-import '../core/constants/app_constants.dart';
-import 'api_keys_screen.dart';
 
 class DisclaimerScreen extends StatelessWidget {
-  final String userId;
-
-  const DisclaimerScreen({super.key, required this.userId});
+  final String userId; // Keep for backwards compatibility
+  const DisclaimerScreen({super.key, this.userId = ''});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return CupertinoPageScaffold(
       backgroundColor: AppColors.bg,
-      body: Stack(
+      child: Stack(
         children: [
           const SpaceBackground(),
           SafeArea(
@@ -23,54 +21,56 @@ class DisclaimerScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('🎉 You\'ve tried Lumio AI!',
-                      style: AppTypography.displayMedium),
+                  const SizedBox(height: 20),
+                  const Text('🎉', style: TextStyle(fontSize: 48)),
                   const SizedBox(height: 12),
-                  Text(
+                  Text("You've tried Lumio AI!", style: AppTypography.displayMedium),
+                  const SizedBox(height: 16),
+                  const Text(
                     'Lumio is free to use, but AI generation costs real money. '
                     'Add your own free API keys for unlimited cloud quality, '
-                    'or download the offline model once.',
-                    style: AppTypography.bodyLarge,
+                    'or connect Health Connect to track vitals on this device.',
+                    style: TextStyle(color: AppColors.textWhite, fontSize: 15, height: 1.5),
                   ),
-                  const SizedBox(height: 24),
-                  _OptionCard(
-                    title: 'Add Free API Keys',
-                    subtitle: 'Best Quality • Works on any phone',
+                  const SizedBox(height: 32),
+                  
+                  // Option A Card
+                  _buildOptionCard(
+                    context: context,
+                    title: 'Option A: Cloud AI',
+                    subtitle: 'Set Up Free API Keys',
                     glowColor: AppColors.success,
-                    icon: Icons.cloud_outlined,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ApiKeysScreen(userId: userId),
-                      ),
-                    ),
+                    icon: CupertinoIcons.cloud,
+                    route: '/settings/api-keys',
                   ),
                   const SizedBox(height: 16),
-                  _OptionCard(
-                    title: 'Download Offline Model',
-                    subtitle:
-                        'No Internet Needed • ${AppConstants.offlineModelSizeGb}GB',
+
+                  // Option B Card
+                  _buildOptionCard(
+                    context: context,
+                    title: 'Option B: Health tracking',
+                    subtitle: 'Health Connect permissions & alerts',
                     glowColor: AppColors.cyan,
-                    icon: Icons.download_outlined,
-                    onTap: () => Navigator.pop(context),
+                    icon: CupertinoIcons.heart_fill,
+                    route: '/health',
                   ),
                   const Spacer(),
+
+                  // Do Both
                   GlowButton(
-                    text: 'Do Both (Recommended)',
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ApiKeysScreen(userId: userId),
-                      ),
-                    ),
+                    text: 'Open Health dashboard ✨',
+                    onPressed: () => Navigator.pushNamed(context, '/health'),
                   ),
                   const SizedBox(height: 12),
+                  
                   Center(
-                    child: TextButton(
+                    child: CupertinoButton(
+                      padding: EdgeInsets.zero,
                       onPressed: () => Navigator.pop(context),
-                      child: Text('Remind Me Later',
-                          style: AppTypography.bodyMedium
-                              .copyWith(color: AppColors.textMuted)),
+                      child: Text(
+                        'Remind Me Later',
+                        style: AppTypography.bodyMedium.copyWith(color: AppColors.textMuted),
+                      ),
                     ),
                   ),
                 ],
@@ -81,32 +81,22 @@ class DisclaimerScreen extends StatelessWidget {
       ),
     );
   }
-}
 
-class _OptionCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final Color glowColor;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _OptionCard({
-    required this.title,
-    required this.subtitle,
-    required this.glowColor,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildOptionCard({
+    required BuildContext context,
+    required String title,
+    required String subtitle,
+    required Color glowColor,
+    required IconData icon,
+    required String route,
+  }) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () => Navigator.pushNamed(context, route),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(20),
         decoration: LumioDecorations.lumioCard(glowing: true).copyWith(
-          border: Border.all(color: glowColor.withValues(alpha: 0.5), width: 1.5),
+          border: Border.all(color: glowColor.withOpacity(0.5), width: 1.5),
         ),
         child: Row(
           children: [
@@ -116,11 +106,16 @@ class _OptionCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: AppTypography.titleMedium),
-                  Text(subtitle, style: AppTypography.bodyMedium),
+                  Text(title, style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(color: glowColor, fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
                 ],
               ),
             ),
+            Icon(CupertinoIcons.chevron_right, color: glowColor, size: 24),
           ],
         ),
       ),

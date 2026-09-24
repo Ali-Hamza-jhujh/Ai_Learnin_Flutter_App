@@ -3,9 +3,10 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const pdfParse = require("pdf-parse");
 import upload from "../middleware/upload.js";
-import Chat from "../models/chat.js";
+import prisma from "../prisma.js";
 import authMiddleware from "../Authentication/auth.js";
 import dotenv from "dotenv";
+import { awardXP } from "../services/xpService.js";
 dotenv.config();
 
 const router = express.Router();
@@ -14,25 +15,18 @@ const router = express.Router();
 // CONSTANTS
 // ══════════════════════════════════════════
 
-// Max messages kept in context window sent to Groq
-// Older messages beyond this are trimmed to save tokens
 const MAX_CONTEXT_MESSAGES = 20;
-
-// Max characters of document context sent to Groq per message
-// Full textbooks can be 500k+ chars — we trim to avoid token limits
 const MAX_DOC_CONTEXT_CHARS = 6000;
 
 // ══════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════
 
-// Extract text from PDF buffer
 const extractTextFromPDF = async (buffer) => {
   const data = await pdfParse(buffer);
   return data.text;
 };
 
-// Build the system prompt — changes based on whether a document is attached
 const buildSystemPrompt = (subject, documentContext, documentName) => {
   let base = `You are StudyAI Tutor, an expert and friendly AI study assistant.
 You help students understand concepts clearly, answer questions patiently,
@@ -70,14 +64,6 @@ ${documentContext.length > MAX_DOC_CONTEXT_CHARS ? "\n[Document trimmed for cont
 // ══════════════════════════════════════════
 
 // ─── CREATE NEW CHAT SESSION ───────────────
-// Call this once when user opens a new chat.
-// Optionally attach a PDF at session creation.
-//
-// Body (multipart/form-data):
-//   title    (required) string
-//   subject  (optional) string
-//   file     (optional) PDF file — attached for document Q&A
-//
 router.post("/new", authMiddleware, upload.single("file"), async (req, res) => {
   try {
     const { title, subject } = req.body;
@@ -90,46 +76,46 @@ router.post("/new", authMiddleware, upload.single("file"), async (req, res) => {
     let documentName = "";
 
     if (req.file) {
-      console.log("Extracting text from attached PDF...");
-      documentContext = await extractTextFromPDF(req.file.buffer);
-      documentName = req.file.originalname;
+      try {
+        console.log("Extracting text from attached PDF...");
+        documentContext = await extractTextFromPDF(req.file.buffer);
+        documentName = req.file.originalname;
+      } catch (pdfError) {
+        console.error("PDF extraction error:", pdfError);
+        return res.status(400).json({ message: "Failed to parse PDF file. Please ensure it's a valid PDF." });
+      }
     }
 
-    const chat = await Chat.create({
-      userId: req.user.id,
-      title,
-      subject: subject || "",
-      documentContext,
-      documentName,
-      messages: [],
-      totalMessages: 0,
+    const chat = await prisma.chat.create({
+      data: {
+        userId: req.user.id,
+        title,
+        subject: subject || "",
+        documentContext,
+        documentName,
+        messages: [],
+        totalMessages: 0,
+      },
     });
 
     res.status(201).json({
       message: "Chat session created!",
-      chatId: chat._id,
+      chatId: chat.id,
+      _id: chat.id,
       title: chat.title,
       subject: chat.subject,
       hasDocument: !!documentContext,
       documentName,
     });
   } catch (e) {
-    res.status(500).json({ message: `Error: ${e.message}` });
+    console.error("Chat creation error:", e);
+    const statusCode = e.statusCode || 500;
+    const message = e.message || "Failed to create chat session";
+    res.status(statusCode).json({ message: `Error: ${message}` });
   }
 });
 
 // ─── SEND MESSAGE — WITH STREAMING ─────────
-//
-// This is the main chat endpoint. It streams the AI response
-// back to Flutter word-by-word using Server-Sent Events (SSE).
-//
-// Flutter listens to the stream and appends each chunk to the UI
-// in real time — no waiting for the full response.
-//
-// URL: POST /api/chat/:chatId/message
-// Body (JSON):
-//   message  (required) string — the user's question
-//
 router.post("/:chatId/message", authMiddleware, async (req, res) => {
   try {
     const { message } = req.body;
@@ -139,68 +125,103 @@ router.post("/:chatId/message", authMiddleware, async (req, res) => {
       return res.status(400).json({ message: "Message cannot be empty" });
     }
 
-    // Load the chat session
-    const chat = await Chat.findById(chatId);
+    const chat = await prisma.chat.findUnique({ where: { id: chatId } });
     if (!chat) return res.status(404).json({ message: "Chat session not found" });
-    if (chat.userId.toString() !== req.user.id) {
+    if (chat.userId !== req.user.id) {
       return res.status(403).json({ message: "Not authorized" });
     }
 
-    // Add user message to history
-    chat.messages.push({ role: "user", content: message.trim() });
+    const messages = Array.isArray(chat.messages) ? [...chat.messages] : [];
+    messages.push({ role: "user", content: message.trim() });
 
-    // Build context window — last N messages only
-    const contextMessages = chat.messages
+    const contextMessages = messages
       .slice(-MAX_CONTEXT_MESSAGES)
       .map((m) => ({ role: m.role, content: m.content }));
 
-    // ── SET UP SSE STREAMING ──────────────────
-    // Flutter will connect and read chunks as they arrive
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
-    res.setHeader("X-Accel-Buffering", "no"); // disable nginx buffering if used
+    res.setHeader("X-Accel-Buffering", "no");
     res.flushHeaders();
 
-    // ── CALL GROQ WITH STREAMING ──────────────
-    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
-        stream: true, // ← this enables streaming
-        messages: [
-          {
-            role: "system",
-            content: buildSystemPrompt(
-              chat.subject,
-              chat.documentContext,
-              chat.documentName
-            ),
+    const userKeys = {
+      groq: req.headers["x-groq-key"] || "",
+      gemini: req.headers["x-gemini-key"] || "",
+      cerebras: req.headers["x-cerebras-key"] || "",
+    };
+    
+    const keysToTry = [
+      { key: userKeys.groq, source: 'user-groq' },
+      { key: userKeys.gemini, source: 'user-gemini' },
+      { key: userKeys.cerebras, source: 'user-cerebras' },
+      { key: process.env.LUMIO_GROQ_KEY, source: 'server-groq' },
+      { key: process.env.LUMIO_GEMINI_KEY, source: 'server-gemini' },
+      { key: process.env.LUMIO_CEREBRAS_KEY, source: 'server-cerebras' },
+    ].filter(k => k.key && k.key.trim());
+    
+    if (keysToTry.length === 0) {
+      res.write(`data: ${JSON.stringify({ error: "No API keys available. Please configure your API keys or use the offline model." })}\n\n`);
+      res.end();
+      return;
+    }
+    
+    let groqRes = null;
+    
+    for (const { key, source } of keysToTry) {
+      try {
+        console.log(`Trying ${source} key for streaming chat...`);
+        
+        groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${key}`,
+            "Content-Type": "application/json",
           },
-          ...contextMessages,
-        ],
-        max_tokens: 1024,
-        temperature: 0.5,
-      }),
-    });
+          body: JSON.stringify({
+            model: "llama-3.3-8b-instant",
+            stream: true,
+            messages: [
+              {
+                role: "system",
+                content: buildSystemPrompt(
+                  chat.subject,
+                  chat.documentContext,
+                  chat.documentName
+                ),
+              },
+              ...contextMessages,
+            ],
+            max_tokens: 1024,
+            temperature: 0.5,
+          }),
+        });
 
-    if (!groqRes.ok) {
-      const errText = await groqRes.text();
-      console.log("Groq stream error:", groqRes.status, errText);
-      res.write(`data: [ERROR] Groq error: ${groqRes.status}\n\n`);
+        if (!groqRes.ok) {
+          const errText = await groqRes.text();
+          console.log(`${source} key error for streaming:`, groqRes.status, errText);
+          
+          if (groqRes.status === 429 || groqRes.status === 401) {
+            continue;
+          }
+          
+          res.write(`data: ${JSON.stringify({ error: `${source} error: ${groqRes.status}` })}\n\n`);
+          res.end();
+          return;
+        }
+        
+        break;
+      } catch (error) {
+        console.log(`${source} key failed for streaming:`, error.message);
+      }
+    }
+    
+    if (!groqRes || !groqRes.ok) {
+      res.write(`data: ${JSON.stringify({ error: "All API keys have reached their limits or are invalid. Please try again later or use the offline model." })}\n\n`);
       res.end();
       return;
     }
 
-    // ── READ STREAM CHUNKS ────────────────────
     let fullAssistantReply = "";
-
-    // Groq streams NDJSON lines — each line is:
-    // "data: {...}" or "data: [DONE]"
     const reader = groqRes.body.getReader();
     const decoder = new TextDecoder("utf-8");
     let buffer = "";
@@ -211,15 +232,12 @@ router.post("/:chatId/message", authMiddleware, async (req, res) => {
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
-
-      // Keep the last incomplete line in buffer
       buffer = lines.pop();
 
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed || trimmed === "data: [DONE]") continue;
 
-        // Strip "data: " prefix
         const jsonStr = trimmed.startsWith("data: ")
           ? trimmed.slice(6)
           : trimmed;
@@ -229,35 +247,41 @@ router.post("/:chatId/message", authMiddleware, async (req, res) => {
           const delta = parsed.choices?.[0]?.delta?.content;
           if (delta) {
             fullAssistantReply += delta;
-            // Send chunk to Flutter as SSE event
             res.write(`data: ${JSON.stringify({ chunk: delta })}\n\n`);
           }
-        } catch {
-          // Malformed chunk — skip silently
-        }
+        } catch {}
       }
     }
 
-    // ── STREAM DONE — SEND FINAL EVENT ────────
-    // Flutter uses this to know the stream is complete
     res.write(`data: ${JSON.stringify({ done: true, fullReply: fullAssistantReply })}\n\n`);
     res.end();
 
-    // ── SAVE ASSISTANT REPLY TO DB ────────────
-    // Save after streaming so DB write doesn't delay the response
     if (fullAssistantReply) {
-      chat.messages.push({ role: "assistant", content: fullAssistantReply });
-      chat.totalMessages = chat.messages.length;
-      await chat.save();
-      if (chat.totalMessages % 5 === 0) {
-        awardXP(req.user.id, "CHAT_MESSAGE").catch(console.error);
+      try {
+        messages.push({ role: "assistant", content: fullAssistantReply });
+        await prisma.chat.update({
+          where: { id: chatId },
+          data: {
+            messages,
+            totalMessages: messages.length,
+          },
+        });
+        if (messages.length % 5 === 0) {
+          awardXP(req.user.id, "CHAT_MESSAGE").catch(err => console.error('XP award error:', err));
+        }
+      } catch (dbError) {
+        console.error("Failed to save chat message:", dbError);
       }
     }
   } catch (e) {
-    console.log("Chat stream error:", e.message);
-    // If headers already sent (streaming started), end gracefully
+    console.error("Chat stream error:", e);
     if (!res.headersSent) {
-      res.status(500).json({ message: `Error: ${e.message}` });
+      if (e.message && e.message.includes('API key')) {
+        return res.status(401).json({ message: e.message });
+      }
+      const statusCode = e.statusCode || 500;
+      const message = e.message || "Failed to send message";
+      res.status(statusCode).json({ message: `Error: ${message}` });
     } else {
       res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
       res.end();
@@ -266,13 +290,6 @@ router.post("/:chatId/message", authMiddleware, async (req, res) => {
 });
 
 // ─── SEND MESSAGE — NO STREAMING (fallback) ──
-//
-// Use this if Flutter SSE implementation is complex.
-// Returns the full reply in one JSON response.
-// Slower UX but simpler to integrate.
-//
-// URL: POST /api/chat/:chatId/message-simple
-//
 router.post("/:chatId/message-simple", authMiddleware, async (req, res) => {
   try {
     const { message } = req.body;
@@ -282,120 +299,225 @@ router.post("/:chatId/message-simple", authMiddleware, async (req, res) => {
       return res.status(400).json({ message: "Message cannot be empty" });
     }
 
-    const chat = await Chat.findById(chatId);
+    const chat = await prisma.chat.findUnique({ where: { id: chatId } });
     if (!chat) return res.status(404).json({ message: "Chat session not found" });
-    if (chat.userId.toString() !== req.user.id) {
+    if (chat.userId !== req.user.id) {
       return res.status(403).json({ message: "Not authorized" });
     }
 
-    chat.messages.push({ role: "user", content: message.trim() });
+    const messages = Array.isArray(chat.messages) ? [...chat.messages] : [];
+    messages.push({ role: "user", content: message.trim() });
 
-    const contextMessages = chat.messages
+    const contextMessages = messages
       .slice(-MAX_CONTEXT_MESSAGES)
       .map((m) => ({ role: m.role, content: m.content }));
 
-    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
-        stream: false,
-        messages: [
-          {
-            role: "system",
-            content: buildSystemPrompt(
-              chat.subject,
-              chat.documentContext,
-              chat.documentName
-            ),
+    const userKeys = {
+      groq: req.headers["x-groq-key"] || "",
+      gemini: req.headers["x-gemini-key"] || "",
+      cerebras: req.headers["x-cerebras-key"] || "",
+    };
+    
+    const keysToTry = [
+      { key: userKeys.groq, source: 'user-groq' },
+      { key: userKeys.gemini, source: 'user-gemini' },
+      { key: userKeys.cerebras, source: 'user-cerebras' },
+      { key: process.env.LUMIO_GROQ_KEY, source: 'server-groq' },
+      { key: process.env.LUMIO_GEMINI_KEY, source: 'server-gemini' },
+      { key: process.env.LUMIO_CEREBRAS_KEY, source: 'server-cerebras' },
+    ].filter(k => k.key && k.key.trim());
+    
+    if (keysToTry.length === 0) {
+      throw new Error("No API keys available. Please configure your API keys or use the offline model.");
+    }
+    
+    let reply = null;
+    
+    for (const { key, source } of keysToTry) {
+      try {
+        console.log(`Trying ${source} key for chat message...`);
+        
+        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${key}`,
+            "Content-Type": "application/json",
           },
-          ...contextMessages,
-        ],
-        max_tokens: 1024,
-        temperature: 0.5,
-      }),
-    });
+          body: JSON.stringify({
+            model: "llama-3.3-8b-instant",
+            stream: false,
+            messages: [
+              {
+                role: "system",
+                content: buildSystemPrompt(
+                  chat.subject,
+                  chat.documentContext,
+                  chat.documentName
+                ),
+              },
+              ...contextMessages,
+            ],
+            max_tokens: 1024,
+            temperature: 0.5,
+          }),
+        });
 
-    if (!groqRes.ok) {
-      const errText = await groqRes.text();
-      throw new Error(`Groq error: ${groqRes.status} — ${errText}`);
+        if (!groqRes.ok) {
+          const errText = await groqRes.text();
+          console.log(`${source} key error for chat:`, groqRes.status, errText);
+          if (groqRes.status === 429 || groqRes.status === 401) continue;
+          throw new Error(`${source} error: ${groqRes.status}`);
+        }
+
+        const data = await groqRes.json();
+        reply = data.choices[0].message.content;
+        break;
+      } catch (error) {
+        console.log(`${source} key failed for chat:`, error.message);
+      }
+    }
+    
+    if (!reply) {
+      throw new Error("All API keys have reached their limits or are invalid. Please try again later or use the offline model.");
     }
 
-    const data = await groqRes.json();
-    const reply = data.choices[0].message.content;
-
-    chat.messages.push({ role: "assistant", content: reply });
-    chat.totalMessages = chat.messages.length;
-    await chat.save();
+    messages.push({ role: "assistant", content: reply });
+    await prisma.chat.update({
+      where: { id: chatId },
+      data: {
+        messages,
+        totalMessages: messages.length,
+      },
+    });
+    
+    awardXP(req.user.id, "CHAT_MESSAGE").catch(err => console.error('XP award error:', err));
 
     res.status(200).json({
       message: "Reply generated",
       reply,
-      chatId: chat._id,
+      chatId: chat.id,
+      _id: chat.id,
     });
   } catch (e) {
-    res.status(500).json({ message: `Error: ${e.message}` });
+    console.error("Chat message error:", e);
+    if (e.message && e.message.includes('All API keys have reached their limits')) {
+      return res.status(429).json({ 
+        message: e.message,
+        suggestOffline: true,
+        error: "api_limits_exceeded"
+      });
+    }
+    if (e.message && e.message.includes('API key')) {
+      return res.status(401).json({ message: e.message });
+    }
+    const statusCode = e.statusCode || 500;
+    const message = e.message || "Failed to send message";
+    res.status(statusCode).json({ message: `Error: ${message}` });
   }
 });
 
 // ─── GET ALL CHAT SESSIONS (list) ────────────
 router.get("/my-chats", authMiddleware, async (req, res) => {
   try {
-    const chats = await Chat.find({ userId: req.user.id })
-      .sort({ updatedAt: -1 })
-      .select("-messages -documentContext"); // exclude heavy fields for list
-    res.status(200).json({ chats });
+    const chats = await prisma.chat.findMany({
+      where: { userId: req.user.id },
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        userId: true,
+        title: true,
+        subject: true,
+        documentName: true,
+        totalMessages: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    const formatted = chats.map(c => ({ ...c, _id: c.id }));
+    res.status(200).json({ chats: formatted });
   } catch (e) {
-    res.status(500).json({ message: `Error: ${e.message}` });
+    console.error("Get chats error:", e);
+    const statusCode = e.statusCode || 500;
+    const message = e.message || "Failed to load chats";
+    res.status(statusCode).json({ message: `Error: ${message}` });
   }
 });
 
 // ─── GET SINGLE CHAT (with full history) ─────
 router.get("/:chatId", authMiddleware, async (req, res) => {
   try {
-    const chat = await Chat.findById(req.params.chatId).select("-documentContext");
+    const chat = await prisma.chat.findUnique({
+      where: { id: req.params.chatId },
+      select: {
+        id: true,
+        userId: true,
+        title: true,
+        subject: true,
+        documentName: true,
+        messages: true,
+        totalMessages: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
     if (!chat) return res.status(404).json({ message: "Chat not found" });
-    if (chat.userId.toString() !== req.user.id) {
+    if (chat.userId !== req.user.id) {
       return res.status(403).json({ message: "Not authorized" });
     }
-    res.status(200).json({ chat });
+    res.status(200).json({ chat: { ...chat, _id: chat.id } });
   } catch (e) {
-    res.status(500).json({ message: `Error: ${e.message}` });
+    console.error("Get chat error:", e);
+    const statusCode = e.statusCode || 500;
+    const message = e.message || "Failed to load chat";
+    res.status(statusCode).json({ message: `Error: ${message}` });
   }
 });
 
 // ─── DELETE CHAT SESSION ──────────────────────
 router.delete("/:chatId", authMiddleware, async (req, res) => {
   try {
-    const chat = await Chat.findById(req.params.chatId);
+    const chat = await prisma.chat.findUnique({
+      where: { id: req.params.chatId },
+    });
     if (!chat) return res.status(404).json({ message: "Chat not found" });
-    if (chat.userId.toString() !== req.user.id) {
+    if (chat.userId !== req.user.id) {
       return res.status(403).json({ message: "Not authorized" });
     }
-    await Chat.findByIdAndDelete(req.params.chatId);
+    await prisma.chat.delete({
+      where: { id: req.params.chatId },
+    });
     res.status(200).json({ message: "Chat deleted successfully" });
   } catch (e) {
-    res.status(500).json({ message: `Error: ${e.message}` });
+    console.error("Delete chat error:", e);
+    const statusCode = e.statusCode || 500;
+    const message = e.message || "Failed to delete chat";
+    res.status(statusCode).json({ message: `Error: ${message}` });
   }
 });
 
 // ─── CLEAR CHAT HISTORY (keep session, wipe messages) ─
 router.delete("/:chatId/clear", authMiddleware, async (req, res) => {
   try {
-    const chat = await Chat.findById(req.params.chatId);
+    const chat = await prisma.chat.findUnique({
+      where: { id: req.params.chatId },
+    });
     if (!chat) return res.status(404).json({ message: "Chat not found" });
-    if (chat.userId.toString() !== req.user.id) {
+    if (chat.userId !== req.user.id) {
       return res.status(403).json({ message: "Not authorized" });
     }
-    chat.messages = [];
-    chat.totalMessages = 0;
-    await chat.save();
+    await prisma.chat.update({
+      where: { id: req.params.chatId },
+      data: {
+        messages: [],
+        totalMessages: 0,
+      },
+    });
     res.status(200).json({ message: "Chat history cleared" });
   } catch (e) {
-    res.status(500).json({ message: `Error: ${e.message}` });
+    console.error("Clear chat error:", e);
+    const statusCode = e.statusCode || 500;
+    const message = e.message || "Failed to clear chat history";
+    res.status(statusCode).json({ message: `Error: ${message}` });
   }
 });
 

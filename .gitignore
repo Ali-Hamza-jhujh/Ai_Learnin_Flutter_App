@@ -3,4 +3,9 @@ build/
 .dart_tool/
 .packages
 .idea/
-*.logbackened/.env 
+*.log
+.env
+.env.*
+*.env
+backened/.env
+ai_learning_app/.env

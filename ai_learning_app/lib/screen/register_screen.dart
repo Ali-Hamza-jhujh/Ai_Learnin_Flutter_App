@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../utils/app_theme.dart';
 import '../services/api_service.dart';
@@ -139,8 +140,7 @@ class _RegisterScreenState extends State<RegisterScreen>
           profilePicture: widget.googlePhotoUrl,
         );
         if (!mounted) return;
-        ScaffoldMessenger.of(context)
-            .showSnackBar(successSnackBar('Profile complete! Welcome 🚀'));
+        showCupertinoSuccess(context, 'Profile complete! Welcome 🚀');
         Navigator.pushReplacement(
             context, MaterialPageRoute(builder: (_) => const HomeScreen()));
       } else {
@@ -201,12 +201,10 @@ class _RegisterScreenState extends State<RegisterScreen>
         _nameCtrl.text = account.displayName ?? '';
         _emailCtrl.text = account.email;
         _animateToStep(1);
-        ScaffoldMessenger.of(context).showSnackBar(
-            successSnackBar('Google connected! Complete your profile.'));
+        showCupertinoSuccess(context, 'Google connected! Complete your profile.');
       } else {
         // Returning Google user → go home
-        ScaffoldMessenger.of(context).showSnackBar(
-            successSnackBar('Welcome back, ${account.displayName}! 🚀'));
+        showCupertinoSuccess(context, 'Welcome back, ${account.displayName}! 🚀');
         Navigator.pushReplacement(
             context, MaterialPageRoute(builder: (_) => const HomeScreen()));
       }
@@ -283,9 +281,9 @@ class _RegisterScreenState extends State<RegisterScreen>
   // ─────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return CupertinoPageScaffold(
       backgroundColor: AppColors.bg,
-      body: Stack(children: [
+      child: Stack(children: [
         const SpaceBackground(),
         SafeArea(
           child: FadeTransition(
@@ -397,7 +395,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                                   label: 'Full Name',
                                   hint: 'e.g. Ali Hassan',
                                   controller: _nameCtrl,
-                                  prefixIcon: Icons.person_outline_rounded,
+                                  prefixIcon: CupertinoIcons.person,
                                   validator: (v) =>
                                       v == null || v.trim().isEmpty
                                           ? 'Name required'

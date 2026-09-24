@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>715913670181-sph5tnsuv8t53qlj42cst8177t8km73r.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.715913670181-sph5tnsuv8t53qlj42cst8177t8km73r</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>715913670181-0vru1t33e7jbqmflj1pt7fh14s2tmoo9.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyCPAZspT05L59keuMyD6QOt8FJzfBRBnJk</string>
+	<key>GCM_SENDER_ID</key>
+	<string>715913670181</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.example.aiLearningApp</string>
+	<key>PROJECT_ID</key>
+	<string>ai-study-app-b192f</string>
+	<key>STORAGE_BUCKET</key>
+	<string>ai-study-app-b192f.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:715913670181:ios:c99979839ec0ae9e18d9cc</string>
+</dict>
+</plist>

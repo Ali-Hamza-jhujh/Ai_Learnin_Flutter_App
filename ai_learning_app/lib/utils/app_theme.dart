@@ -1,38 +1,44 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'dart:math' as math;
 
 class AppColors {
-  static const Color bg = Color(0xFF050818);
-  static const Color bgCard = Color(0xFF0D1225);
-  static const Color bgSurface = Color(0xFF111827);
-  static const Color violet = Color(0xFF7B61FF);
-  static const Color violetGlow = Color(0x447B61FF);
-  static const Color violetLight = Color(0xFF9B7FFF);
-  static const Color cyan = Color(0xFF00D4FF);
-  static const Color cyanGlow = Color(0x3300D4FF);
-  static const Color gold = Color(0xFFFFB547);
-  static const Color textWhite = Color(0xFFEEF2FF);
-  static const Color textSub = Color(0xFF8892B0);
-  static const Color textMuted = Color(0xFF4A5568);
-  static const Color success = Color(0xFF34EEB6);
-  static const Color error = Color(0xFFFF5C8D);
-  static const Color textLight = Color(0xFFCCD6F6);
-  static const Color inputBg = Color(0xFF0F1629);
-  static const Color inputBorder = Color(0xFF1E2A4A);
-  static const Color divider = Color(0xFF1A2340);
+  static const Color bg = Color(0xFFF3F4F6);
+  static const Color bgCard = Color(0xFFFFFFFF);
+  static const Color bgSurface = Color(0xFFFFFFFF);
+  static const Color violet = Color(0xFF1E40AF);
+  static const Color violetGlow = Color(0x221E40AF);
+  static const Color violetLight = Color(0xFF3B82F6);
+  static const Color cyan = Color(0xFF2563EB);
+  static const Color cyanGlow = Color(0x222563EB);
+  static const Color gold = Color(0xFFF59E0B);
+  static const Color textWhite = Color(0xFF0F172A);
+  static const Color textSub = Color(0xFF475569);
+  static const Color textMuted = Color(0xFF94A3B8);
+  static const Color success = Color(0xFF10B981);
+  static const Color error = Color(0xFFEF4444);
+  static const Color textLight = Color(0xFF64748B);
+  static const Color inputBg = Color(0xFFF8FAFC);
+  static const Color inputBorder = Color(0xFFE2E8F0);
+  static const Color divider = Color(0xFFE2E8F0);
 
   static const LinearGradient primaryGrad = LinearGradient(
-      colors: [Color(0xFF7B61FF), Color(0xFF00D4FF)],
+      colors: [Color(0xFF1E40AF), Color(0xFF3B82F6)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight);
 
   static const LinearGradient bgGrad = LinearGradient(
-      colors: [Color(0xFF050818), Color(0xFF0A0F2E), Color(0xFF050818)],
+      colors: [Color(0xFFF3F4F6), Color(0xFFEFF6FF), Color(0xFFF3F4F6)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight);
 
   static const LinearGradient goldGrad = LinearGradient(
-      colors: [Color(0xFFFFB547), Color(0xFFFF6B9D)],
+      colors: [Color(0xFFF59E0B), Color(0xFFEF4444)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight);
+
+  static const LinearGradient cardGradient = LinearGradient(
+      colors: [Color(0xFFFFFFFF), Color(0xFFF8FAFC)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight);
 }
@@ -147,8 +153,8 @@ class _GlowButtonState extends State<GlowButton>
                     ? const SizedBox(
                         width: 22,
                         height: 22,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2.5))
+                        child: CupertinoActivityIndicator(
+                            color: Colors.white, radius: 11))
                     : Row(mainAxisSize: MainAxisSize.min, children: [
                         if (widget.icon != null) ...[
                           Icon(widget.icon, color: Colors.white, size: 20),
@@ -228,8 +234,8 @@ class _GoogleButtonState extends State<GoogleButton>
                     ? const SizedBox(
                         width: 22,
                         height: 22,
-                        child: CircularProgressIndicator(
-                            color: AppColors.textSub, strokeWidth: 2.5))
+                        child: CupertinoActivityIndicator(
+                            color: AppColors.textSub, radius: 11))
                     : Row(mainAxisSize: MainAxisSize.min, children: [
                         // Google G logo
                         Container(
@@ -294,56 +300,56 @@ class _AppTextFieldState extends State<AppTextField> {
       const SizedBox(height: 8),
       Focus(
           onFocusChange: (v) => setState(() => _focused = v),
-          child: TextFormField(
-            controller: widget.controller,
-            obscureText: widget.isPassword && _obscure,
-            keyboardType: widget.keyboardType,
-            textInputAction: widget.textInputAction,
-            onEditingComplete: widget.onEditingComplete,
+          child: FormField<String>(
             validator: widget.validator,
-            style: const TextStyle(color: AppColors.textWhite, fontSize: 15),
-            decoration: InputDecoration(
-                hintText: widget.hint,
-                hintStyle:
-                    const TextStyle(color: AppColors.textMuted, fontSize: 14),
-                filled: true,
-                fillColor: AppColors.inputBg,
-                prefixIcon: Icon(widget.prefixIcon,
-                    color: _focused ? AppColors.violet : AppColors.textMuted,
-                    size: 20),
-                suffixIcon: widget.isPassword
-                    ? IconButton(
-                        icon: Icon(
-                            _obscure
-                                ? Icons.visibility_off_outlined
-                                : Icons.visibility_outlined,
-                            color: AppColors.textMuted,
-                            size: 20),
-                        onPressed: () => setState(() => _obscure = !_obscure))
-                    : null,
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: AppColors.inputBorder)),
-                enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(
-                        color: AppColors.inputBorder, width: 1.5)),
-                focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide:
-                        const BorderSide(color: AppColors.violet, width: 2)),
-                errorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide:
-                        const BorderSide(color: AppColors.error, width: 1.5)),
-                focusedErrorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide:
-                        const BorderSide(color: AppColors.error, width: 2)),
-                errorStyle:
-                    const TextStyle(color: AppColors.error, fontSize: 12),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 18)),
+            initialValue: widget.controller.text,
+            builder: (state) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CupertinoTextField(
+                    controller: widget.controller,
+                    obscureText: widget.isPassword && _obscure,
+                    keyboardType: widget.keyboardType,
+                    textInputAction: widget.textInputAction,
+                    onEditingComplete: widget.onEditingComplete,
+                    style: const TextStyle(color: AppColors.textWhite, fontSize: 15),
+                    placeholder: widget.hint,
+                    placeholderStyle: const TextStyle(color: AppColors.textMuted, fontSize: 14),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                    prefix: Padding(
+                      padding: const EdgeInsets.only(left: 18),
+                      child: Icon(widget.prefixIcon,
+                          color: _focused ? AppColors.violet : AppColors.textMuted, size: 20),
+                    ),
+                    suffix: widget.isPassword
+                        ? CupertinoButton(
+                            padding: EdgeInsets.zero,
+                            child: Icon(
+                                _obscure ? CupertinoIcons.eye_slash : CupertinoIcons.eye,
+                                color: AppColors.textMuted,
+                                size: 20),
+                            onPressed: () => setState(() => _obscure = !_obscure))
+                        : null,
+                    decoration: BoxDecoration(
+                        color: AppColors.inputBg,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: state.hasError
+                                ? AppColors.error
+                                : (_focused ? AppColors.violet : AppColors.inputBorder),
+                            width: _focused || state.hasError ? 2 : 1.5)),
+                    onChanged: (val) => state.didChange(val),
+                  ),
+                  if (state.hasError)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6, left: 6),
+                      child: Text(state.errorText ?? '',
+                          style: const TextStyle(color: AppColors.error, fontSize: 12)),
+                    )
+                ],
+              );
+            },
           )),
     ]);
   }
@@ -399,7 +405,7 @@ class _SpacePainter extends CustomPainter {
     // Background gradient
     final bgPaint = Paint()
       ..shader = const LinearGradient(
-              colors: [Color(0xFF050818), Color(0xFF0A0F2E), Color(0xFF06091A)],
+              colors: [Color(0xFFF3F4F6), Color(0xFFEFF6FF), Color(0xFFF9FAFB)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight)
           .createShader(Rect.fromLTWH(0, 0, size.width, size.height));
@@ -408,30 +414,30 @@ class _SpacePainter extends CustomPainter {
     // Nebula glow top-right
     final nebulaPaint = Paint()
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 120);
-    nebulaPaint.color = Color.fromRGBO(123, 97, 255, 0.08 + nebula * 0.06);
+    nebulaPaint.color = Color.fromRGBO(30, 64, 175, 0.05 + nebula * 0.03);
     canvas.drawCircle(
         Offset(size.width * 0.85, size.height * 0.12), 200, nebulaPaint);
 
     // Nebula glow bottom-left
-    nebulaPaint.color = Color.fromRGBO(0, 212, 255, 0.06 + (1 - nebula) * 0.05);
+    nebulaPaint.color = Color.fromRGBO(59, 130, 246, 0.04 + (1 - nebula) * 0.03);
     canvas.drawCircle(
         Offset(size.width * 0.1, size.height * 0.8), 160, nebulaPaint);
 
-    // Stars
+    // Stars (rendered as soft light-blue ambient dots)
     final rand = math.Random(42);
     for (int i = 0; i < 60; i++) {
       final x = rand.nextDouble() * size.width;
       final y = rand.nextDouble() * size.height;
       final r = rand.nextDouble() * 1.5 + 0.5;
       final phase = rand.nextDouble() * math.pi * 2;
-      final opacity = 0.2 + math.sin(star * math.pi * 2 + phase).abs() * 0.5;
+      final opacity = 0.15 + math.sin(star * math.pi * 2 + phase).abs() * 0.3;
       canvas.drawCircle(Offset(x, y), r,
-          Paint()..color = Color.fromRGBO(238, 242, 255, opacity));
+          Paint()..color = Color.fromRGBO(100, 116, 139, opacity));
     }
 
     // Grid lines
     final gridPaint = Paint()
-      ..color = const Color(0x08FFFFFF)
+      ..color = const Color(0x06000000)
       ..strokeWidth = 1;
     for (double x = 0; x < size.width; x += 80) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
@@ -442,7 +448,7 @@ class _SpacePainter extends CustomPainter {
 
     // Diagonal accent line
     final accentPaint = Paint()
-      ..color = AppColors.violet.withValues(alpha: 0.06)
+      ..color = AppColors.violet.withValues(alpha: 0.03)
       ..strokeWidth = 1;
     canvas.drawLine(Offset(size.width * 0.6, 0),
         Offset(size.width, size.height * 0.5), accentPaint);
@@ -515,14 +521,27 @@ PageRouteBuilder fadeSlideRoute(Widget screen) => PageRouteBuilder(
             child: child)),
     transitionDuration: const Duration(milliseconds: 350));
 
-// ── Success snackbar ──
-SnackBar successSnackBar(String msg) => SnackBar(
-    content: Row(children: [
-      const Icon(Icons.check_circle_rounded, color: AppColors.success),
-      const SizedBox(width: 10),
-      Text(msg, style: AppTextStyles.body.copyWith(color: Colors.white)),
-    ]),
-    backgroundColor: AppColors.bgCard,
-    behavior: SnackBarBehavior.floating,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-    margin: const EdgeInsets.all(16));
+// ── Success snackbar (Replaced with Cupertino Dialog helper) ──
+void showCupertinoSuccess(BuildContext context, String msg) {
+  showCupertinoDialog(
+    context: context,
+    builder: (context) => CupertinoAlertDialog(
+      title: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success),
+          SizedBox(width: 8),
+          Text('Success'),
+        ],
+      ),
+      content: Text(msg),
+      actions: [
+        CupertinoDialogAction(
+          isDefaultAction: true,
+          child: const Text('OK'),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ],
+    ),
+  );
+}

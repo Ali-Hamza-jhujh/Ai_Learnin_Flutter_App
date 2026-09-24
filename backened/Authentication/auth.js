@@ -21,6 +21,7 @@ const authMiddleware = (req, res, next) => {
     req.user = {
       id: decoded.id || decoded._id || decoded.userId,
       email: decoded.email,
+      isAdmin: decoded.isAdmin === true,
     };
     next();
   } catch (error) {

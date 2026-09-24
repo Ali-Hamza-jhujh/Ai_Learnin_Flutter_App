@@ -30,15 +30,24 @@ const callML = async (endpoint, body) => {
   return res.json();
 };
 
-// Load user's test results from MongoDB
+import prisma from "../prisma.js";
+
+// Load user's test results from PostgreSQL
 const getUserResults = async (userId) => {
-  const { default: TestResult } = await import("../models/testResult.js");
-  const results = await TestResult.find({ userId })
-    .sort({ createdAt: 1 }) // oldest first — important for trend analysis
-    .select(
-      "subject chapter totalQuestions correctAnswers wrongAnswers skippedAnswers scorePercent timeTakenSeconds"
-    )
-    .lean();
+  const results = await prisma.testResult.findMany({
+    where: { userId },
+    orderBy: { createdAt: "asc" },
+    select: {
+      subject: true,
+      chapter: true,
+      totalQuestions: true,
+      correctAnswers: true,
+      wrongAnswers: true,
+      skippedAnswers: true,
+      scorePercent: true,
+      timeTakenSeconds: true,
+    },
+  });
 
   // Map to the shape Python expects
   return results.map((r) => ({

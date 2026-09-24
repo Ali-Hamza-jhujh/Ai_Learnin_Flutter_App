@@ -1,70 +1,93 @@
-import { callGemini, callGroq, callCerebras } from "./providers.js";
+import { callGroq, callGemini, callCerebras } from "./providers.js";
 import { isRateLimitError } from "./rateLimitDetector.js";
+import { isCoolingDown, markCoolingDown } from "./providerState.js";
 
-const TIMEOUT_MS = 15000;
-const COOLDOWN_MS = 60 * 60 * 1000;
-
-const cooldowns = new Map();
-
-export function getProviderCooldowns(userId) {
-  const now = Date.now();
-  const result = {};
-
-  for (const provider of ["gemini", "groq", "cerebras"]) {
-    const key = `${provider}_${userId}`;
-    const until = cooldowns.get(key);
-    result[provider] = {
-      coolingDown: Boolean(until && now < until),
-      until: until && now < until ? until : null,
-    };
+function parseJson(text) {
+  let cleaned = (text || "").trim();
+  
+  // Strip ```json and ``` fences
+  if (cleaned.startsWith("```json")) {
+    cleaned = cleaned.substring(7);
+  } else if (cleaned.startsWith("```")) {
+    cleaned = cleaned.substring(3);
   }
+  if (cleaned.endsWith("```")) {
+    cleaned = cleaned.substring(0, cleaned.length - 3);
+  }
+  cleaned = cleaned.trim();
 
-  return result;
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end === -1) {
+    throw new Error("Malformed JSON: matching brackets not found");
+  }
+  const jsonStr = cleaned.substring(start, end + 1);
+  return JSON.parse(jsonStr);
 }
 
 export async function generateWithFallback(prompt, userKeys, userId) {
   const providers = [
-    { name: "gemini", fn: callGemini },
     { name: "groq", fn: callGroq },
+    { name: "gemini", fn: callGemini },
     { name: "cerebras", fn: callCerebras },
   ];
 
-  const skipped = [];
+  const attempted = [];
 
   for (const provider of providers) {
     const key = userKeys?.[provider.name];
-    if (!key?.trim()) continue;
-
-    const cooldownKey = `${provider.name}_${userId}`;
-    if (cooldowns.has(cooldownKey) && Date.now() < cooldowns.get(cooldownKey)) {
-      skipped.push({ provider: provider.name, reason: "cooling_down" });
+    if (!key || key.trim().length === 0) {
       continue;
     }
 
-    try {
-      const result = await Promise.race([
-        provider.fn(prompt, key.trim()),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(Object.assign(new Error("timeout"), { status: 408 })), TIMEOUT_MS)
-        ),
-      ]);
+    if (isCoolingDown(provider.name, userId)) {
+      continue;
+    }
 
-      return { result, provider: provider.name, skipped };
-    } catch (err) {
-      const status = err.status || 0;
+    attempted.push(provider.name);
 
-      if (isRateLimitError(err, status)) {
-        cooldowns.set(cooldownKey, Date.now() + COOLDOWN_MS);
-        skipped.push({ provider: provider.name, reason: "rate_limit" });
-      } else if (status === 401 || status === 403) {
-        skipped.push({ provider: provider.name, reason: "invalid_key" });
-      } else {
-        skipped.push({ provider: provider.name, reason: "error" });
+    let parsedResult = null;
+    let success = false;
+    let isRetry = false;
+
+    // Retry the same provider ONCE if JSON parsing fails
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const rawResponse = await provider.fn(prompt, key.trim());
+        try {
+          parsedResult = parseJson(rawResponse);
+          success = true;
+          break; // Success! Exit the retry/parsing loop.
+        } catch (jsonErr) {
+          if (attempt === 1) {
+            isRetry = true;
+            continue; // Retry once
+          } else {
+            const wrapErr = new Error(`JSON parsing failed: ${jsonErr.message}`);
+            wrapErr.status = 500;
+            throw wrapErr;
+          }
+        }
+      } catch (err) {
+        if (isRetry && attempt === 1) {
+          continue; // Run the second attempt
+        }
+
+        // Detect and handle rate limits
+        if (isRateLimitError(err)) {
+          markCoolingDown(provider.name, userId);
+        }
+        
+        break; // Fail and skip to next provider
       }
+    }
+
+    if (success) {
+      return { result: parsedResult, provider: provider.name, attempted };
     }
   }
 
-  const error = new Error("ALL_PROVIDERS_EXHAUSTED");
-  error.skipped = skipped;
-  throw error;
+  const err = new Error("ALL_PROVIDERS_EXHAUSTED");
+  err.attempted = attempted;
+  throw err;
 }

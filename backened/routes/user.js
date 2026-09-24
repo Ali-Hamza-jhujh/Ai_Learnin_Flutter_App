@@ -1,16 +1,27 @@
-
-import User from "../models/users.js";
 import express from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import dotenv from "dotenv";
-dotenv.config();
+import prisma from "../prisma.js";
 import sendVerificationEmail from "../email/verifyuser.js";
 import sendPasswordResetEmail from "../email/resetPassword.js";
+
+dotenv.config();
+
 const BASE_URL = process.env.FRONTEND_URL || "http://localhost:5000";
 const router = express.Router();
-const SECRET_KEY = process.env.SECRET_KEY;
+const SECRET_KEY = process.env.SECRET_KEY || process.env.JWT_SECRET;
+
+// Helper to ensure _id is present for Flutter app compatibility
+const formatUser = (user) => {
+  if (!user) return user;
+  const userObj = { ...user, _id: user.id };
+  delete userObj.password;
+  delete userObj.verifyToken;
+  delete userObj.resetToken;
+  return userObj;
+};
 
 // ─── REGISTER ─────────────────────────────────────────────
 router.post("/register", async (req, res) => {
@@ -20,7 +31,10 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    const existingUser = await User.findOne({ email });
+    const normalizedEmail = email.toLowerCase().trim();
+    const existingUser = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
     if (existingUser) {
       return res.status(409).json({ message: "Email already registered" });
     }
@@ -31,25 +45,33 @@ router.post("/register", async (req, res) => {
     const verifyToken = crypto.randomBytes(32).toString("hex");
     const verifyTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    const user = await User.create({
-      name, email, password: hashedPassword,
-      educationLevel, subject, goal, profilePicture,
-      verifyToken, verifyTokenExpiry,
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email: normalizedEmail,
+        password: hashedPassword,
+        educationLevel,
+        subject,
+        goal,
+        profilePicture: profilePicture || "",
+        verifyToken,
+        verifyTokenExpiry,
+      },
     });
-
-    user.password = undefined;
 
     res.status(201).json({
       message: "Registered! Please check your email to verify your account.",
-      user,
+      user: formatUser(user),
     });
 
-    sendVerificationEmail(email, name, verifyToken)
-      .then(() => console.log("✅ Verify email sent to:", email))
+    sendVerificationEmail(normalizedEmail, name, verifyToken)
+      .then(() => console.log("✅ Verify email sent to:", normalizedEmail))
       .catch((err) => console.log("❌ Email error:", err.message));
 
   } catch (e) {
-    if (e.code === 11000) return res.status(409).json({ message: "Email already registered" });
+    if (e.code === "P2002") {
+      return res.status(409).json({ message: "Email already registered" });
+    }
     res.status(500).json({ message: `Error: ${e.message}` });
   }
 });
@@ -60,19 +82,26 @@ router.post("/resend-verify", async (req, res) => {
   try {
     if (!email) return res.status(400).json({ message: "Email is required" });
 
-    const user = await User.findOne({ email }).select("+verifyToken +verifyTokenExpiry");
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
     if (!user) return res.status(404).json({ message: "No account found with this email" });
     if (user.isVerified) return res.status(400).json({ message: "User already verified" });
 
     const verifyToken = crypto.randomBytes(32).toString("hex");
     const verifyTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    await User.findByIdAndUpdate(user._id, { verifyToken, verifyTokenExpiry });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { verifyToken, verifyTokenExpiry },
+    });
 
     res.status(200).json({ message: "Verification email resent! Please check your inbox." });
 
-    sendVerificationEmail(email, user.name, verifyToken)
-      .then(() => console.log("✅ Resend email sent to:", email))
+    sendVerificationEmail(normalizedEmail, user.name, verifyToken)
+      .then(() => console.log("✅ Resend email sent to:", normalizedEmail))
       .catch((err) => console.log("❌ Resend email error:", err.message));
 
   } catch (e) {
@@ -80,8 +109,7 @@ router.post("/resend-verify", async (req, res) => {
   }
 });
 
-// ─── VERIFY EMAIL (still HTML — opens in browser from email link) ──
-// Keep this as HTML because the user clicks from their email browser
+// ─── VERIFY EMAIL (HTML — opened in browser from email link) ──
 router.get("/verify", async (req, res) => {
   const { token } = req.query;
   try {
@@ -89,18 +117,24 @@ router.get("/verify", async (req, res) => {
       return res.status(400).send(verifyPage("❌ Invalid Link", "No token was provided.", false));
     }
 
-    const user = await User.findOne({ verifyToken: token }).select("+verifyToken +verifyTokenExpiry");
+    const user = await prisma.user.findFirst({
+      where: { verifyToken: token },
+    });
+
     if (!user) {
       return res.status(400).send(verifyPage("❌ Invalid Link", "This link is invalid or already used.", false));
     }
-    if (user.verifyTokenExpiry < Date.now()) {
+    if (user.verifyTokenExpiry && new Date(user.verifyTokenExpiry).getTime() < Date.now()) {
       return res.status(400).send(verifyPage("⏰ Link Expired", "This link has expired. Please request a new one.", false));
     }
 
-    await User.findByIdAndUpdate(user._id, {
-      isVerified: true,
-      verifyToken: undefined,
-      verifyTokenExpiry: undefined,
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        isVerified: true,
+        verifyToken: null,
+        verifyTokenExpiry: null,
+      },
     });
 
     return res.status(200).send(verifyPage("✅ Email Verified!", "Your account is verified. You can now log in to StudyAI.", true));
@@ -116,17 +150,28 @@ router.post("/login", async (req, res) => {
   try {
     if (!email || !password) return res.status(400).json({ message: "All fields are required" });
 
-    const user = await User.findOne({ email }).select("+password");
-    if (!user) return res.status(400).json({ message: "Wrong email or password" });
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (!user || !user.password) return res.status(400).json({ message: "Wrong email or password" });
     if (!user.isVerified) return res.status(403).json({ message: "Please verify your email first" });
 
     const passwordCheck = await bcrypt.compare(password, user.password);
     if (!passwordCheck) return res.status(400).json({ message: "Wrong email or password" });
 
-    const token = jwt.sign({ id: user._id }, SECRET_KEY, { expiresIn: "7d" });
-    user.password = undefined;
+    const token = jwt.sign(
+      { id: user.id, _id: user.id, isAdmin: user.isAdmin === true },
+      SECRET_KEY,
+      { expiresIn: "7d" }
+    );
 
-    res.status(200).json({ message: "Login successful!", user, token });
+    res.status(200).json({
+      message: "Login successful!",
+      user: formatUser(user),
+      token,
+    });
   } catch (e) {
     res.status(500).json({ message: `Error: ${e.message}` });
   }
@@ -138,7 +183,10 @@ router.post("/forgot-password", async (req, res) => {
   try {
     if (!email) return res.status(400).json({ message: "Email is required" });
 
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
 
     if (!user) {
       return res.status(200).json({
@@ -155,15 +203,17 @@ router.post("/forgot-password", async (req, res) => {
     const resetToken = crypto.randomBytes(32).toString("hex");
     const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
 
-    await User.findByIdAndUpdate(user._id, { resetToken, resetTokenExpiry });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { resetToken, resetTokenExpiry },
+    });
 
-    // Respond immediately — email sends in background
     res.status(200).json({
       message: "If an account with that email exists, a reset link has been sent.",
     });
 
-    sendPasswordResetEmail(email, user.name, resetToken)
-      .then(() => console.log("✅ Reset email sent to:", email))
+    sendPasswordResetEmail(normalizedEmail, user.name, resetToken)
+      .then(() => console.log("✅ Reset email sent to:", normalizedEmail))
       .catch((err) => console.log("❌ Reset email error:", err.message));
 
   } catch (e) {
@@ -171,9 +221,7 @@ router.post("/forgot-password", async (req, res) => {
   }
 });
 
-// ─── RESET PASSWORD PAGE (keep HTML — opens in browser from email link) ──
-// User clicks link in email → opens browser → sees this HTML form
-// We keep this as HTML because it's a browser page, not Flutter
+// ─── RESET PASSWORD PAGE (HTML — opened from email link) ──
 router.get("/reset-password", async (req, res) => {
   const { token } = req.query;
   try {
@@ -181,11 +229,14 @@ router.get("/reset-password", async (req, res) => {
       return res.status(400).send(resetPage("❌ Invalid Link", "No token provided.", false, null));
     }
 
-    const user = await User.findOne({ resetToken: token }).select("+resetToken +resetTokenExpiry");
+    const user = await prisma.user.findFirst({
+      where: { resetToken: token },
+    });
+
     if (!user) {
       return res.status(400).send(resetPage("❌ Invalid Link", "This link is invalid or already used.", false, null));
     }
-    if (user.resetTokenExpiry < Date.now()) {
+    if (user.resetTokenExpiry && new Date(user.resetTokenExpiry).getTime() < Date.now()) {
       return res.status(400).send(resetPage("⏰ Link Expired", "This link has expired. Please request a new one.", false, null));
     }
 
@@ -210,25 +261,29 @@ router.post("/reset-password", async (req, res) => {
       return res.status(400).send(resetPage("❌ Error", "Password must be at least 6 characters.", true, token));
     }
 
-    const user = await User.findOne({ resetToken: token }).select("+resetToken +resetTokenExpiry +password");
+    const user = await prisma.user.findFirst({
+      where: { resetToken: token },
+    });
+
     if (!user) {
       return res.status(400).send(resetPage("❌ Invalid Link", "This link is invalid or already used.", false, null));
     }
-    if (user.resetTokenExpiry < Date.now()) {
+    if (user.resetTokenExpiry && new Date(user.resetTokenExpiry).getTime() < Date.now()) {
       return res.status(400).send(resetPage("⏰ Expired", "This link has expired. Please request a new one.", false, null));
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-    await User.findByIdAndUpdate(user._id, {
-      password: hashedPassword,
-      resetToken: undefined,
-      resetTokenExpiry: undefined,
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExpiry: null,
+      },
     });
 
-    // ── SUCCESS: return JSON so Flutter ResetPasswordScreen can handle it ──
-    // Also keep HTML for browser users who came from email link
     return res.status(200).send(resetPage("✅ Password Reset!", "Your password has been changed. You can now log in.", false, null, true));
 
   } catch (e) {
@@ -237,7 +292,6 @@ router.post("/reset-password", async (req, res) => {
 });
 
 // ─── RESET PASSWORD API → JSON only (Flutter ResetPasswordScreen) ──
-// Flutter sends token + new password → gets JSON back
 router.post("/reset-password-api", async (req, res) => {
   const { token, newPassword } = req.body;
   try {
@@ -248,19 +302,25 @@ router.post("/reset-password-api", async (req, res) => {
       return res.status(400).json({ message: "Password must be at least 6 characters" });
     }
 
-    const user = await User.findOne({ resetToken: token }).select("+resetToken +resetTokenExpiry +password");
+    const user = await prisma.user.findFirst({
+      where: { resetToken: token },
+    });
+
     if (!user) return res.status(400).json({ message: "Invalid or already used reset link" });
-    if (user.resetTokenExpiry < Date.now()) {
+    if (user.resetTokenExpiry && new Date(user.resetTokenExpiry).getTime() < Date.now()) {
       return res.status(400).json({ message: "Reset link expired. Please request a new one." });
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-    await User.findByIdAndUpdate(user._id, {
-      password: hashedPassword,
-      resetToken: undefined,
-      resetTokenExpiry: undefined,
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExpiry: null,
+      },
     });
 
     res.status(200).json({ message: "Password reset successfully! You can now log in." });
@@ -276,39 +336,51 @@ router.post("/google", async (req, res) => {
   try {
     if (!email) return res.status(400).json({ message: "Email is required" });
 
-    let user = await User.findOne({ email });
+    const normalizedEmail = email.toLowerCase().trim();
+    let user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
 
     if (user) {
       if (!user.isVerified) {
-        await User.findByIdAndUpdate(user._id, { isVerified: true });
-        user.isVerified = true;
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { isVerified: true },
+        });
       }
     } else {
-      user = await User.create({
-        name: name || email.split("@")[0],
-        email,
-        password: crypto.randomBytes(32).toString("hex"),
-        educationLevel: "undergraduate",
-        subject: "General",
-        goal: "Learn and grow",
-        profilePicture: profilePicture || "",
-        isVerified: true,
-        googleAuth: true,
+      user = await prisma.user.create({
+        data: {
+          name: name || normalizedEmail.split("@")[0],
+          email: normalizedEmail,
+          password: crypto.randomBytes(32).toString("hex"),
+          educationLevel: "undergraduate",
+          subject: "General",
+          goal: "Learn and grow",
+          profilePicture: profilePicture || "",
+          isVerified: true,
+          googleAuth: true,
+        },
       });
     }
 
-    const token = jwt.sign({ id: user._id }, SECRET_KEY, { expiresIn: "7d" });
-    user.password = undefined;
+    const token = jwt.sign(
+      { id: user.id, _id: user.id },
+      SECRET_KEY,
+      { expiresIn: "7d" }
+    );
 
     const needsProfile = user.subject === "General" || !user.subject;
 
     res.status(200).json({
       message: "Google login successful!",
-      user, token, needsProfile,
+      user: formatUser(user),
+      token,
+      needsProfile,
     });
 
   } catch (e) {
-    if (e.code === 11000) return res.status(409).json({ message: "Email already registered" });
+    if (e.code === "P2002") return res.status(409).json({ message: "Email already registered" });
     res.status(500).json({ message: `Error: ${e.message}` });
   }
 });
@@ -316,10 +388,8 @@ router.post("/google", async (req, res) => {
 // ══════════════════════════════════════════
 // HTML PAGES
 // Only 2 remain — both are browser pages opened from email links
-// Flutter never sees these — they open in the phone's browser
 // ══════════════════════════════════════════
 
-// Verify email page — user clicks from email → browser opens this
 const verifyPage = (title, message, success) => `
 <!DOCTYPE html><html><head><meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -352,7 +422,6 @@ const verifyPage = (title, message, success) => `
   </div>
 </body></html>`;
 
-// Reset password page — user clicks from email → browser opens this form
 const resetPage = (title, message, showForm, token, isSuccess = false) => `
 <!DOCTYPE html><html><head><meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>

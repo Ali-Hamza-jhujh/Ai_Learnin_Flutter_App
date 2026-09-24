@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -41,9 +42,9 @@ class _YouTubeScreenState extends State<YouTubeScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return CupertinoPageScaffold(
         backgroundColor: AppColors.bg,
-        body: Stack(children: [
+        child: Stack(children: [
           const SpaceBackground(),
           SafeArea(
               child: Column(children: [
@@ -152,6 +153,7 @@ class _SuggestionsTabState extends State<_SuggestionsTab>
   bool _loading = true;
   String? _error;
   String _subject = '';
+  int _refreshKey = 0; // Key to force rebuild of video cards
 
   @override
   void initState() {
@@ -163,6 +165,7 @@ class _SuggestionsTabState extends State<_SuggestionsTab>
     setState(() {
       _loading = true;
       _error = null;
+      _refreshKey++; // Increment key to force rebuild
     });
     try {
       final res = await YouTubeService.getSuggestions();
@@ -197,7 +200,7 @@ class _SuggestionsTabState extends State<_SuggestionsTab>
     super.build(context);
     if (_loading) {
       return const Center(
-          child: CircularProgressIndicator(color: Color(0xFFFF6B6B)));
+          child: CupertinoActivityIndicator(radius: 12));
     }
     if (_error != null) {
       return Center(
@@ -210,7 +213,7 @@ class _SuggestionsTabState extends State<_SuggestionsTab>
                     const SizedBox(height: 16),
                     GlowButton(
                         text: 'Retry',
-                        icon: Icons.refresh_rounded,
+                        icon: CupertinoIcons.refresh,
                         gradient: const LinearGradient(
                             colors: [Color(0xFFFF6B6B), Color(0xFFFF8E53)]),
                         onPressed: _loadSuggestions),
@@ -242,13 +245,13 @@ class _SuggestionsTabState extends State<_SuggestionsTab>
               ],
               // Featured video — large card
               if (_videos.isNotEmpty) ...[
-                _VideoCard(video: _videos.first, featured: true),
+                _VideoCard(key: ValueKey('featured_$_refreshKey'), video: _videos.first, featured: true),
                 const SizedBox(height: 16),
               ],
               // Rest of videos
               ..._videos.skip(1).map((v) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: _VideoCard(video: v))),
+                  child: _VideoCard(key: ValueKey('video_${v['videoId']}_$_refreshKey'), video: v))),
             ]));
   }
 }
@@ -273,6 +276,7 @@ class _SearchTabState extends State<_SearchTab>
   bool _loading = false;
   bool _hasSearched = false;
   String? _error;
+  int _refreshKey = 0; // Key to force rebuild of video cards
 
   // Quick search chips
   final List<String> _quickSearches = [
@@ -299,6 +303,7 @@ class _SearchTabState extends State<_SearchTab>
       _loading = true;
       _error = null;
       _hasSearched = true;
+      _refreshKey++; // Increment key to force rebuild
     });
     try {
       final res =
@@ -343,24 +348,23 @@ class _SearchTabState extends State<_SearchTab>
               child: Row(children: [
                 const Padding(
                     padding: EdgeInsets.only(left: 16),
-                    child: Icon(Icons.search_rounded,
+                    child: Icon(CupertinoIcons.search,
                         color: AppColors.textMuted, size: 22)),
                 Expanded(
-                    child: TextField(
+                    child: CupertinoTextField(
                         controller: _searchCtrl,
                         style: const TextStyle(
                             color: AppColors.textWhite, fontSize: 15),
-                        decoration: const InputDecoration(
-                            hintText: 'Search lectures, topics...',
-                            hintStyle: TextStyle(color: AppColors.textMuted),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 16)),
+                        placeholder: 'Search lectures, topics...',
+                        placeholderStyle: const TextStyle(color: AppColors.textMuted),
+                        decoration: const BoxDecoration(),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 16),
                         textInputAction: TextInputAction.search,
                         onSubmitted: _search)),
                 if (_searchCtrl.text.isNotEmpty)
                   IconButton(
-                      icon: const Icon(Icons.close_rounded,
+                      icon: const Icon(CupertinoIcons.clear,
                           color: AppColors.textMuted, size: 18),
                       onPressed: () {
                         _searchCtrl.clear();
@@ -388,7 +392,7 @@ class _SearchTabState extends State<_SearchTab>
       Expanded(
           child: _loading
               ? const Center(
-                  child: CircularProgressIndicator(color: Color(0xFFFF6B6B)))
+                  child: CupertinoActivityIndicator(radius: 12))
               : !_hasSearched
                   ? _buildSearchPrompt()
                   : _error != null
@@ -405,7 +409,7 @@ class _SearchTabState extends State<_SearchTab>
                               separatorBuilder: (_, __) =>
                                   const SizedBox(height: 12),
                               itemBuilder: (_, i) =>
-                                  _VideoCard(video: _results[i]))),
+                                  _VideoCard(key: ValueKey('search_${_results[i]['videoId']}_$_refreshKey'), video: _results[i]))),
     ]);
   }
 
@@ -477,11 +481,12 @@ class _SavedTab extends StatefulWidget {
 class _SavedTabState extends State<_SavedTab>
     with AutomaticKeepAliveClientMixin {
   @override
-  bool get wantKeepAlive => true;
+  bool get wantKeepAlive => false; // Disable keep alive to force refresh on tab switch
 
   List<Map<String, dynamic>> _saved = [];
   bool _loading = true;
   String? _error;
+  int _refreshKey = 0; // Key to force rebuild of video cards
 
   @override
   void initState() {
@@ -489,10 +494,18 @@ class _SavedTabState extends State<_SavedTab>
     _loadSaved();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh when tab becomes active
+    _loadSaved();
+  }
+
   Future<void> _loadSaved() async {
     setState(() {
       _loading = true;
       _error = null;
+      _refreshKey++; // Increment key to force rebuild
     });
     try {
       final res = await YouTubeService.getSavedVideos();
@@ -511,10 +524,10 @@ class _SavedTabState extends State<_SavedTab>
           _loading = false;
         });
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() {
-          _error = 'Failed to load saved videos';
+          _error = 'Failed to load saved videos: ${e.toString()}';
           _loading = false;
         });
       }
@@ -542,7 +555,7 @@ class _SavedTabState extends State<_SavedTab>
     super.build(context);
     if (_loading) {
       return const Center(
-          child: CircularProgressIndicator(color: Color(0xFFFF6B6B)));
+          child: CupertinoActivityIndicator(radius: 12));
     }
     if (_error != null) {
       return Center(
@@ -605,6 +618,7 @@ class _SavedTabState extends State<_SavedTab>
                           color: AppColors.error)),
                   onDismissed: (_) => _unsave(v['videoId'] as String? ?? ''),
                   child: _SavedVideoCard(
+                      key: ValueKey('saved_${v['videoId']}_$_refreshKey'),
                       video: v,
                       onUnsave: () => _unsave(v['videoId'] as String? ?? '')));
             }));
@@ -618,7 +632,7 @@ class _SavedTabState extends State<_SavedTab>
 class _VideoCard extends StatefulWidget {
   final Map<String, dynamic> video;
   final bool featured;
-  const _VideoCard({required this.video, this.featured = false});
+  const _VideoCard({super.key, required this.video, this.featured = false});
   @override
   State<_VideoCard> createState() => _VideoCardState();
 }
@@ -631,6 +645,18 @@ class _VideoCardState extends State<_VideoCard> {
   void initState() {
     super.initState();
     _checkSaved();
+  }
+
+  @override
+  void didUpdateWidget(_VideoCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Re-check saved status when widget is updated (e.g., after refresh)
+    // Only check if videoId changed to avoid unnecessary API calls
+    final oldVideoId = oldWidget.video['videoId'] as String? ?? '';
+    final newVideoId = widget.video['videoId'] as String? ?? '';
+    if (oldVideoId != newVideoId) {
+      _checkSaved();
+    }
   }
 
   Future<void> _checkSaved() async {
@@ -651,13 +677,7 @@ class _VideoCardState extends State<_VideoCard> {
             widget.video['videoId'] as String? ?? '');
         if (mounted) {
           setState(() => _isSaved = false);
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: const Text('Removed from saved'),
-              backgroundColor: AppColors.bgCard,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              margin: const EdgeInsets.all(16)));
+          _showSnackBar('Removed from saved');
         }
       } else {
         await YouTubeService.saveVideo(
@@ -668,25 +688,37 @@ class _VideoCardState extends State<_VideoCard> {
           url: widget.video['url'] as String?,
           duration: widget.video['duration'] as String?,
           views: widget.video['views'] as String?,
+          subject: widget.video['subject'] as String?,
         );
         if (mounted) {
           setState(() => _isSaved = true);
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: const Row(children: [
-                Icon(Icons.bookmark_added_rounded, color: Color(0xFFFF6B6B)),
-                SizedBox(width: 8),
-                Text('Saved to your lectures'),
-              ]),
-              backgroundColor: AppColors.bgCard,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              margin: const EdgeInsets.all(16)));
+          _showSnackBar('Saved to your lectures');
         }
       }
-    } catch (_) {
+    } catch (e) {
+      if (mounted) {
+        _showSnackBar('Error: ${e.toString()}', isError: true);
+      }
     } finally {
       if (mounted) setState(() => _savingLoading = false);
+    }
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    
+    // Check if ScaffoldMessenger exists
+    final scaffoldMessenger = ScaffoldMessenger.maybeOf(context);
+    if (scaffoldMessenger != null) {
+      scaffoldMessenger.showSnackBar(SnackBar(
+          content: Text(message),
+          backgroundColor: isError 
+              ? AppColors.error.withValues(alpha: 0.9)
+              : AppColors.bgCard,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16)));
     }
   }
 
@@ -757,9 +789,7 @@ class _VideoCardState extends State<_VideoCard> {
                                 height: 180,
                                 color: AppColors.inputBg,
                                 child: const Center(
-                                    child: CircularProgressIndicator(
-                                        color: Color(0xFFFF6B6B),
-                                        strokeWidth: 2))),
+                                    child: CupertinoActivityIndicator(radius: 12))),
                             errorWidget: (_, __, ___) => Container(
                                 height: 180,
                                 color: AppColors.inputBg,
@@ -866,9 +896,7 @@ class _VideoCardState extends State<_VideoCard> {
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
-                                      child: CircularProgressIndicator(
-                                          color: Color(0xFFFF6B6B),
-                                          strokeWidth: 2))
+                                      child: CupertinoActivityIndicator(radius: 12))
                                   : Icon(
                                       _isSaved
                                           ? Icons.bookmark_rounded
@@ -908,9 +936,7 @@ class _VideoCardState extends State<_VideoCard> {
                                 height: 72,
                                 color: AppColors.inputBg,
                                 child: const Center(
-                                    child: CircularProgressIndicator(
-                                        color: Color(0xFFFF6B6B),
-                                        strokeWidth: 2))),
+                                    child: CupertinoActivityIndicator(radius: 12))),
                             errorWidget: (_, __, ___) => Container(
                                 width: 110,
                                 height: 72,
@@ -989,8 +1015,7 @@ class _VideoCardState extends State<_VideoCard> {
                               ? const SizedBox(
                                   width: 18,
                                   height: 18,
-                                  child: CircularProgressIndicator(
-                                      color: Color(0xFFFF6B6B), strokeWidth: 2))
+                                  child: CupertinoActivityIndicator(radius: 12))
                               : Icon(
                                   _isSaved
                                       ? Icons.bookmark_rounded
@@ -1012,7 +1037,7 @@ class _VideoCardState extends State<_VideoCard> {
 class _SavedVideoCard extends StatelessWidget {
   final Map<String, dynamic> video;
   final VoidCallback onUnsave;
-  const _SavedVideoCard({required this.video, required this.onUnsave});
+  const _SavedVideoCard({super.key, required this.video, required this.onUnsave});
 
   Future<void> _openVideo(BuildContext context) async {
     final url = video['url'] as String? ?? '';
